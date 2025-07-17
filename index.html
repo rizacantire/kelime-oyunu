@@ -272,6 +272,10 @@
             <button id="remove-duplicates-button" class="bg-purple-500 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg text-lg mt-4 shadow-md transition duration-200 ease-in-out">
                 Tekrarlayan Kelimeleri Temizle
             </button>
+            <!-- Kelimeleri Dışa Aktar Butonu -->
+            <button id="export-words-button" class="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg text-lg mt-4 shadow-md transition duration-200 ease-in-out">
+                Kelimeleri Dışa Aktar (Excel)
+            </button>
             <!-- Tüm Kelimeleri Sil Butonu -->
             <button id="delete-all-words-button" class="bg-red-500 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg text-lg mt-6 shadow-md transition duration-200 ease-in-out">
                 Tüm Kelimeleri Sil
@@ -314,11 +318,14 @@
         </div>
     </div>
 
-    <!-- Onay Modalı (Silme İşlemi İçin) -->
+    <!-- Onay Modalı (Genel Kullanım ve Tekrarlayanları Silme İçin) -->
     <div id="confirm-modal" class="modal">
         <div class="modal-content">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">Onay Gerekli</h2>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4" id="confirm-modal-title">Onay Gerekli</h2>
             <p id="confirm-message" class="text-lg text-gray-700 mb-6"></p>
+            <div id="confirm-details-list" class="text-left text-gray-700 mb-6 max-h-48 overflow-y-auto hidden">
+                <!-- Detaylar buraya yüklenecek -->
+            </div>
             <div class="flex justify-center gap-4">
                 <button id="confirm-yes-button" class="button-primary px-6 py-3 text-white font-bold rounded-lg">Evet</button>
                 <button id="confirm-no-button" class="button-secondary px-6 py-3 text-gray-800 font-bold rounded-lg">Hayır</button>
@@ -367,6 +374,20 @@
         let wordsCollectionRef;
         let currentAppId; // Kendi Firebase projenizin projectId'si olacak
 
+        // --- Yardımcı Fonksiyonlar ---
+
+        /**
+         * Bir string'in ilk harfini büyük harfe çevirir, dil duyarlılığına dikkat eder.
+         * @param {string} str Giriş string'i.
+         * @param {string} locale Dil kodu (örn: 'tr-TR' veya 'it-IT').
+         * @returns {string} İlk harfi büyük harfe çevrilmiş string.
+         */
+        function capitalizeFirstLetter(str, locale = 'tr-TR') {
+            if (!str) return '';
+            // İlk harfi büyük harfe çevir, kalanını olduğu gibi bırak
+            return str.charAt(0).toLocaleUpperCase(locale) + str.slice(1);
+        }
+
         // --- Modallar için Yardımcı Fonksiyonlar ---
         window.showModal = function(modalId) {
             document.getElementById(modalId).style.display = 'flex';
@@ -378,6 +399,9 @@
             }
             if (modalId === 'confirm-modal') {
                 confirmActionCallback = null;
+                document.getElementById('confirm-modal-title').textContent = 'Onay Gerekli'; // Başlığı sıfırla
+                document.getElementById('confirm-details-list').innerHTML = ''; // Detayları temizle
+                document.getElementById('confirm-details-list').classList.add('hidden'); // Detay listesini gizle
             }
         }
         function displayError(message) {
@@ -385,12 +409,41 @@
             errorMessageDisplay.textContent = message;
             window.showModal('error-modal');
         }
-        function showConfirmModal(message, callback) {
+
+        /**
+         * Genel onay modalını gösterir.
+         * @param {string} message Ana onay mesajı.
+         * @param {Function} callback Kullanıcı onayladığında çağrılacak fonksiyon (true/false döner).
+         * @param {string} [title='Onay Gerekli'] Modal başlığı.
+         * @param {string[]} [details=[]] Detaylı mesajlar veya silinecek öğelerin listesi.
+         */
+        function showConfirmModal(message, callback, title = 'Onay Gerekli', details = []) {
             const confirmMessage = document.getElementById('confirm-message');
+            const confirmModalTitle = document.getElementById('confirm-modal-title');
+            const confirmDetailsList = document.getElementById('confirm-details-list');
+
+            confirmModalTitle.textContent = title;
             confirmMessage.textContent = message;
             confirmActionCallback = callback;
+
+            confirmDetailsList.innerHTML = '';
+            if (details.length > 0) {
+                const ul = document.createElement('ul');
+                ul.className = 'list-disc list-inside text-sm text-left mx-auto max-w-xs';
+                details.forEach(item => {
+                    const li = document.createElement('li');
+                    li.textContent = item;
+                    ul.appendChild(li);
+                });
+                confirmDetailsList.appendChild(ul);
+                confirmDetailsList.classList.remove('hidden');
+            } else {
+                confirmDetailsList.classList.add('hidden');
+            }
+
             window.showModal('confirm-modal');
         }
+
 
         // UI Elementleri
         const mainMenu = document.getElementById('main-menu');
@@ -426,7 +479,7 @@
 
         const addItalianWordInput = document.getElementById('add-italian-word');
         const addTurkishWordInput = document.getElementById('add-turkish-word');
-        const addWordTypeInput = document.getElementById('add-word-type'); // Yeni
+        const addWordTypeInput = document.getElementById('add-word-type');
         const addWordButton = document.getElementById('add-word-button');
         const wordsTableBody = document.getElementById('words-table-body');
         const totalWordCountSpan = document.getElementById('total-word-count');
@@ -443,17 +496,20 @@
         const deleteAllWordsButton = document.getElementById('delete-all-words-button');
         // Yeni "Tekrarlayan Kelimeleri Temizle" butonu
         const removeDuplicatesButton = document.getElementById('remove-duplicates-button');
+        // Yeni "Kelimeleri Dışa Aktar" butonu
+        const exportWordsButton = document.getElementById('export-words-button');
+
 
         const editWordModal = document.getElementById('edit-word-modal');
         const editItalianWordInput = document.getElementById('edit-italian-word');
         const editTurkishWordInput = document.getElementById('edit-turkish-word');
-        const editWordTypeInput = document.getElementById('edit-word-type'); // Yeni
+        const editWordTypeInput = document.getElementById('edit-word-type');
         const saveEditButton = document.getElementById('save-edit-button');
 
         const confirmYesButton = document.getElementById('confirm-yes-button');
         const confirmNoButton = document.getElementById('confirm-no-button');
 
-        const categorySelectionContainer = document.getElementById('category-selection-container'); // Yeni
+        const categorySelectionContainer = document.getElementById('category-selection-container');
 
         confirmYesButton.addEventListener('click', () => {
             if (confirmActionCallback) {
@@ -771,11 +827,11 @@
 
         // --- Kelime Yönetimi İşlemleri (Firebase Destekli) ---
 
-        // Kelime zaten mevcut mu kontrol eder (büyük/küçük harf duyarsız)
+        // Kelime zaten mevcut mu kontrol eder (büyük/küçük harf ve aksan duyarsız)
         function isWordDuplicate(italian, turkish) {
             return allWords.some(word =>
-                word.italian.localeCompare(italian, undefined, { sensitivity: 'base' }) === 0 &&
-                word.turkish.localeCompare(turkish, undefined, { sensitivity: 'base' }) === 0
+                (word.italian || '').localeCompare(italian, undefined, { sensitivity: 'base' }) === 0 &&
+                (word.turkish || '').localeCompare(turkish, undefined, { sensitivity: 'base' }) === 0
             );
         }
 
@@ -791,16 +847,16 @@
             }
 
             if (isWordDuplicate(italian, turkish)) {
-                displayError(`"${italian} - ${turkish}" kelimesi zaten listede mevcut.`);
+                displayError(`"${capitalizeFirstLetter(italian, 'it-IT')} - ${capitalizeFirstLetter(turkish, 'tr-TR')}" kelimesi zaten listede mevcut.`);
                 return;
             }
 
             try {
                 // Firebase'e yeni kelime ekle
                 await addDoc(wordsCollectionRef, {
-                    italian: italian,
-                    turkish: turkish,
-                    type: type, // Yeni 'type' alanı eklendi
+                    italian: capitalizeFirstLetter(italian, 'it-IT'), // Baş harfi büyük
+                    turkish: capitalizeFirstLetter(turkish, 'tr-TR'), // Baş harfi büyük
+                    type: capitalizeFirstLetter(type, 'tr-TR'), // Türün de baş harfi büyük
                     timestamp: new Date() // Eklenme zamanı
                 });
                 addItalianWordInput.value = '';
@@ -830,15 +886,15 @@
 
                 const italianCell = row.insertCell();
                 italianCell.className = 'px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900';
-                italianCell.textContent = word.italian;
+                italianCell.textContent = capitalizeFirstLetter(word.italian || '', 'it-IT'); // Baş harfi büyük
 
                 const turkishCell = row.insertCell();
                 turkishCell.className = 'px-3 py-2 whitespace-nowrap text-sm text-gray-500';
-                turkishCell.textContent = word.turkish;
+                turkishCell.textContent = capitalizeFirstLetter(word.turkish || '', 'tr-TR'); // Baş harfi büyük
 
                 const typeCell = row.insertCell(); // Yeni
                 typeCell.className = 'px-3 py-2 whitespace-nowrap text-sm text-gray-500';
-                typeCell.textContent = word.type || 'Belirtilmemiş'; // Tür yoksa "Belirtilmemiş" yaz
+                typeCell.textContent = capitalizeFirstLetter(word.type || 'Belirtilmemiş', 'tr-TR'); // Tür yoksa "Belirtilmemiş" yaz, baş harfi büyük
 
                 const actionsCell = row.insertCell();
                 actionsCell.className = 'px-3 py-2 whitespace-nowrap text-right text-sm font-medium';
@@ -852,7 +908,7 @@
                 const deleteButton = document.createElement('button');
                 deleteButton.textContent = 'Sil';
                 deleteButton.className = 'text-red-600 hover:text-red-900';
-                deleteButton.onclick = () => showConfirmModal(`"${word.italian}" kelimesini silmek istediğinizden emin misiniz?`, async (confirmed) => {
+                deleteButton.onclick = () => showConfirmModal(`"${capitalizeFirstLetter(word.italian || '', 'it-IT')}" kelimesini silmek istediğinizden emin misiniz?`, async (confirmed) => {
                     if (confirmed) {
                         await deleteWord(word.id);
                     }
@@ -889,7 +945,7 @@
             const existingWord = allWords.find(word => word.id === currentEditingDocId);
             if (existingWord && (existingWord.italian.localeCompare(italian, undefined, { sensitivity: 'base' }) !== 0 || existingWord.turkish.localeCompare(turkish, undefined, { sensitivity: 'base' }) !== 0)) {
                 if (isWordDuplicate(italian, turkish)) {
-                    displayError(`"${italian} - ${turkish}" kelimesi zaten listede mevcut.`);
+                    displayError(`"${capitalizeFirstLetter(italian, 'it-IT')} - ${capitalizeFirstLetter(turkish, 'tr-TR')}" kelimesi zaten listede mevcut.`);
                     return;
                 }
             }
@@ -898,9 +954,9 @@
                 // Firebase'deki belgeyi güncelle
                 const wordDocRef = doc(db, `users/${userId}/words`, currentEditingDocId);
                 await updateDoc(wordDocRef, {
-                    italian: italian,
-                    turkish: turkish,
-                    type: type // Yeni 'type' alanı güncellendi
+                    italian: capitalizeFirstLetter(italian, 'it-IT'),
+                    turkish: capitalizeFirstLetter(turkish, 'tr-TR'),
+                    type: capitalizeFirstLetter(type, 'tr-TR')
                 });
                 console.log("Kelime başarıyla güncellendi (Firebase'de)!");
                 window.closeModal('edit-word-modal');
@@ -1018,9 +1074,9 @@
                                 console.warn(`Tekrarlayan kelime atlandı: ${trimmedItalian} - ${trimmedTurkish}`);
                             } else {
                                 wordsToProcess.push({
-                                    italian: trimmedItalian,
-                                    turkish: trimmedTurkish,
-                                    type: type, // Type alanını ekle
+                                    italian: capitalizeFirstLetter(trimmedItalian, 'it-IT'),
+                                    turkish: capitalizeFirstLetter(trimmedTurkish, 'tr-TR'),
+                                    type: capitalizeFirstLetter(type, 'tr-TR'),
                                     timestamp: new Date()
                                 });
                             }
@@ -1117,6 +1173,8 @@
                                 deleteAllWordsButton.classList.add('opacity-50', 'cursor-not-allowed');
                                 removeDuplicatesButton.disabled = true; // Diğer silme butonunu da devre dışı bırak
                                 removeDuplicatesButton.classList.add('opacity-50', 'cursor-not-allowed');
+                                exportWordsButton.disabled = true; // Dışa aktar butonunu da devre dışı bırak
+                                exportWordsButton.classList.add('opacity-50', 'cursor-not-allowed');
                                 excelProgressContainer.classList.remove('hidden'); // Progress bar'ı göster
                                 excelProgressBar.style.width = '0%'; // Progress bar'ı sıfırla
 
@@ -1160,6 +1218,8 @@
                                 deleteAllWordsButton.classList.remove('opacity-50', 'cursor-not-allowed');
                                 removeDuplicatesButton.disabled = false; // Diğer silme butonunu tekrar etkinleştir
                                 removeDuplicatesButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                                exportWordsButton.disabled = false; // Dışa aktar butonunu tekrar etkinleştir
+                                exportWordsButton.classList.remove('opacity-50', 'cursor-not-allowed');
                                 excelProgressContainer.classList.add('hidden'); // Progress bar'ı gizle
                                 excelProgressBar.style.width = '0%'; // Progress bar'ı sıfırla
                             }
@@ -1176,98 +1236,152 @@
                 return;
             }
 
-            showConfirmModal("Veritabanındaki tekrarlayan kelimeleri temizlemek istediğinizden emin misiniz? Her kelime grubundan yalnızca bir tanesi kalacaktır.", async (confirmed) => {
-                if (confirmed) {
-                    try {
-                        const q = query(wordsCollectionRef);
-                        const snapshot = await getDocs(q);
+            try {
+                const q = query(wordsCollectionRef);
+                const snapshot = await getDocs(q);
 
-                        if (snapshot.empty) {
-                            excelImportStatus.className = 'text-sm mt-3 text-orange-600';
-                            excelImportStatus.textContent = "Veritabanında kelime bulunamadı.";
-                            return;
-                        }
-
-                        const uniqueWords = new Map(); // Key: "italian_turkish_lower", Value: first encountered doc
-                        const duplicatesToDelete = [];
-
-                        snapshot.forEach(doc => {
-                            const data = doc.data();
-                            // localeCompare ile büyük/küçük harf ve karakter duyarsız karşılaştırma
-                            const normalizedItalian = (data.italian || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                            const normalizedTurkish = (data.turkish || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                            const normalizedKey = `${normalizedItalian}_${normalizedTurkish}`;
-
-                            if (uniqueWords.has(normalizedKey)) {
-                                duplicatesToDelete.push(doc.id); // Bu bir kopya, silinecek
-                            } else {
-                                uniqueWords.set(normalizedKey, doc); // İlk kez görülen kelime, saklanacak
-                            }
-                        });
-
-                        if (duplicatesToDelete.length === 0) {
-                            excelImportStatus.className = 'text-sm mt-3 text-green-600';
-                            excelImportStatus.textContent = "Tekrarlayan kelime bulunamadı.";
-                            return;
-                        }
-
-                        let deletedCount = 0;
-                        const totalToDelete = duplicatesToDelete.length;
-
-                        excelImportStatus.className = 'text-sm mt-3 text-gray-600';
-                        excelImportStatus.textContent = `Tekrarlayan kelimeler siliniyor... %0`;
-                        removeDuplicatesButton.disabled = true;
-                        removeDuplicatesButton.classList.add('opacity-50', 'cursor-not-allowed');
-                        deleteAllWordsButton.disabled = true; // Diğer silme butonunu da devre dışı bırak
-                        deleteAllWordsButton.classList.add('opacity-50', 'cursor-not-allowed');
-                        excelProgressContainer.classList.remove('hidden'); // Progress bar'ı göster
-                        excelProgressBar.style.width = '0%'; // Progress bar'ı sıfırla
-
-                        const BATCH_SIZE = 499;
-                        let currentBatch = db.batch();
-                        let batchCount = 0;
-
-                        for (const docId of duplicatesToDelete) {
-                            currentBatch.delete(doc(db, `users/${userId}/words`, docId));
-                            deletedCount++;
-                            batchCount++;
-
-                            const progress = Math.floor((deletedCount / totalToDelete) * 100);
-                            excelImportStatus.textContent = `Tekrarlayan kelimeler siliniyor... %${progress}`;
-                            excelProgressBar.style.width = `${progress}%`;
-
-                            if (batchCount === BATCH_SIZE) {
-                                await currentBatch.commit();
-                                currentBatch = db.batch();
-                                batchCount = 0;
-                                console.log("Batch commit edildi (tekrarlayan silme).");
-                            }
-                        }
-
-                        if (batchCount > 0) {
-                            await currentBatch.commit();
-                            console.log("Son batch commit edildi (tekrarlayan silme).");
-                        }
-
-                        excelImportStatus.className = 'text-sm mt-3 text-green-600';
-                        excelImportStatus.textContent = `${deletedCount} tekrarlayan kelime başarıyla silindi!`;
-                        console.log(`${deletedCount} tekrarlayan kelime başarıyla silindi.`);
-                        // onSnapshot dinleyicisi tabloyu otomatik güncelleyecektir.
-
-                    } catch (error) {
-                        console.error("Tekrarlayan kelimeler silinirken hata oluştu: ", error);
-                        displayError("Tekrarlayan kelimeler silinirken bir hata oluştu: " + error.message);
-                    } finally {
-                        removeDuplicatesButton.disabled = false;
-                        removeDuplicatesButton.classList.remove('opacity-50', 'cursor-not-allowed');
-                        deleteAllWordsButton.disabled = false; // Diğer silme butonunu tekrar etkinleştir
-                        deleteAllWordsButton.classList.remove('opacity-50', 'cursor-not-allowed');
-                        excelProgressContainer.classList.add('hidden'); // Progress bar'ı gizle
-                        excelProgressBar.style.width = '0%'; // Progress bar'ı sıfırla
-                    }
+                if (snapshot.empty) {
+                    excelImportStatus.className = 'text-sm mt-3 text-orange-600';
+                    excelImportStatus.textContent = "Veritabanında kelime bulunamadı.";
+                    return;
                 }
-            });
+
+                const uniqueWordsMap = new Map(); // Key: "normalizedItalian_normalizedTurkish", Value: first encountered doc
+                const duplicatesToDelete = [];
+                const duplicateDetailsForDisplay = [];
+
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const normalizedItalian = (data.italian || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    const normalizedTurkish = (data.turkish || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    const normalizedKey = `${normalizedItalian}_${normalizedTurkish}`;
+
+                    if (uniqueWordsMap.has(normalizedKey)) {
+                        duplicatesToDelete.push(doc.id); // Bu bir kopya, silinecek
+                        duplicateDetailsForDisplay.push(`${capitalizeFirstLetter(data.italian, 'it-IT')} - ${capitalizeFirstLetter(data.turkish, 'tr-TR')} (ID: ${doc.id.substring(0, 6)}...)`);
+                    } else {
+                        uniqueWordsMap.set(normalizedKey, doc); // İlk kez görülen kelime, saklanacak
+                    }
+                });
+
+                if (duplicatesToDelete.length === 0) {
+                    excelImportStatus.className = 'text-sm mt-3 text-green-600';
+                    excelImportStatus.textContent = "Tekrarlayan kelime bulunamadı.";
+                    return;
+                }
+
+                showConfirmModal(
+                    `Veritabanınızda ${duplicatesToDelete.length} adet tekrar eden kelime bulundu. Bu kelimeler kalıcı olarak silinecektir.`,
+                    async (confirmed) => {
+                        if (confirmed) {
+                            let deletedCount = 0;
+                            const totalToDelete = duplicatesToDelete.length;
+
+                            excelImportStatus.className = 'text-sm mt-3 text-gray-600';
+                            excelImportStatus.textContent = `Tekrarlayan kelimeler siliniyor... %0`;
+                            removeDuplicatesButton.disabled = true;
+                            removeDuplicatesButton.classList.add('opacity-50', 'cursor-not-allowed');
+                            deleteAllWordsButton.disabled = true;
+                            deleteAllWordsButton.classList.add('opacity-50', 'cursor-not-allowed');
+                            exportWordsButton.disabled = true;
+                            exportWordsButton.classList.add('opacity-50', 'cursor-not-allowed');
+                            excelProgressContainer.classList.remove('hidden');
+                            excelProgressBar.style.width = '0%';
+
+                            const BATCH_SIZE = 499;
+                            let currentBatch = db.batch();
+                            let batchCount = 0;
+
+                            for (const docId of duplicatesToDelete) {
+                                currentBatch.delete(doc(db, `users/${userId}/words`, docId));
+                                deletedCount++;
+                                batchCount++;
+
+                                const progress = Math.floor((deletedCount / totalToDelete) * 100);
+                                excelImportStatus.textContent = `Tekrarlayan kelimeler siliniyor... %${progress}`;
+                                excelProgressBar.style.width = `${progress}%`;
+
+                                if (batchCount === BATCH_SIZE) {
+                                    await currentBatch.commit();
+                                    currentBatch = db.batch();
+                                    batchCount = 0;
+                                    console.log("Batch commit edildi (tekrarlayan silme).");
+                                }
+                            }
+
+                            if (batchCount > 0) {
+                                await currentBatch.commit();
+                                console.log("Son batch commit edildi (tekrarlayan silme).");
+                            }
+
+                            excelImportStatus.className = 'text-sm mt-3 text-green-600';
+                            excelImportStatus.textContent = `${deletedCount} tekrarlayan kelime başarıyla silindi!`;
+                            console.log(`${deletedCount} tekrarlayan kelime başarıyla silindi.`);
+
+                        } else {
+                            excelImportStatus.className = 'text-sm mt-3 text-gray-600';
+                            excelImportStatus.textContent = "Tekrarlayan kelime silme işlemi iptal edildi.";
+                        }
+                    },
+                    "Tekrarlayan Kelimeleri Silme Onayı",
+                    duplicateDetailsForDisplay
+                );
+
+            } catch (error) {
+                console.error("Tekrarlayan kelimeler silinirken hata oluştu: ", error);
+                displayError("Tekrarlayan kelimeler silinirken bir hata oluştu: " + error.message);
+            } finally {
+                removeDuplicatesButton.disabled = false;
+                removeDuplicatesButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                deleteAllWordsButton.disabled = false;
+                deleteAllWordsButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                exportWordsButton.disabled = false;
+                exportWordsButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                excelProgressContainer.classList.add('hidden');
+                excelProgressBar.style.width = '0%';
+            }
         });
+
+        // --- Kelimeleri Dışa Aktar İşlevi ---
+        exportWordsButton.addEventListener('click', async () => {
+            if (!userId) {
+                displayError("Kelimeleri dışa aktarmak için giriş yapmış olmalısınız.");
+                return;
+            }
+            if (allWords.length === 0) {
+                displayError("Dışa aktarılacak kelime bulunamadı.");
+                return;
+            }
+
+            excelImportStatus.className = 'text-sm mt-3 text-gray-600';
+            excelImportStatus.textContent = 'Kelimeler Excel dosyasına hazırlanıyor...';
+            exportWordsButton.disabled = true;
+            exportWordsButton.classList.add('opacity-50', 'cursor-not-allowed');
+
+            try {
+                const dataForExport = allWords.map(word => ({
+                    'İtalyanca': word.italian,
+                    'Türkçe': word.turkish,
+                    'Tür': word.type || 'Genel'
+                }));
+
+                const worksheet = XLSX.utils.json_to_sheet(dataForExport);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "Kelimeler");
+
+                XLSX.writeFile(workbook, "kelimelerim.xlsx");
+
+                excelImportStatus.className = 'text-sm mt-3 text-green-600';
+                excelImportStatus.textContent = 'Kelimeler başarıyla dışa aktarıldı!';
+            } catch (error) {
+                console.error("Kelimeler dışa aktarılırken hata oluştu: ", error);
+                displayError("Kelimeler dışa aktarılırken bir hata oluştu: " + error.message);
+            } finally {
+                exportWordsButton.disabled = false;
+                exportWordsButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        });
+
 
         // --- Kategori Seçimi Oluşturma ve Yönetme ---
         function renderCategorySelection() {
