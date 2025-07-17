@@ -89,7 +89,7 @@
             transform: translateY(-1px);
         }
         /* Yeni Onay Modalı Stilleri */
-        #confirm-modal .modal-content {
+        #confirm-modal .modal-content, #duplicate-options-modal .modal-content {
             width: 500px;
         }
         /* Google Giriş Butonu Stili */
@@ -333,12 +333,37 @@
         </div>
     </div>
 
+    <!-- Tekrarlayanları Silme Seçenek Modalı -->
+    <div id="duplicate-options-modal" class="modal">
+        <div class="modal-content">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Tekrarlayan Kelimeleri Nasıl Kontrol Edelim?</h2>
+            <p class="text-lg text-gray-700 mb-6">Lütfen tekrarlayan kelimeleri hangi kritere göre aramak istediğinizi seçin:</p>
+            <div class="flex flex-col gap-4 mb-6">
+                <label class="inline-flex items-center">
+                    <input type="radio" name="duplicateCheckMode" value="both" class="form-radio text-blue-600" checked>
+                    <span class="ml-2 text-gray-700 font-medium">Hem İtalyanca Hem Türkçe Kelimeye Göre (Varsayılan)</span>
+                </label>
+                <label class="inline-flex items-center">
+                    <input type="radio" name="duplicateCheckMode" value="italianOnly" class="form-radio text-blue-600">
+                    <span class="ml-2 text-gray-700 font-medium">Sadece İtalyanca Kelimeye Göre</span>
+                </label>
+                <label class="inline-flex items-center">
+                    <input type="radio" name="duplicateCheckMode" value="turkishOnly" class="form-radio text-blue-600">
+                    <span class="ml-2 text-gray-700 font-medium">Sadece Türkçe Kelimeye Göre</span>
+                </label>
+            </div>
+            <button id="start-duplicate-check-button" class="button-primary px-6 py-3 text-white font-bold rounded-lg">Devam Et</button>
+            <button class="button-secondary px-6 py-3 text-gray-800 font-bold rounded-lg mt-2" onclick="window.closeModal('duplicate-options-modal')">İptal</button>
+        </div>
+    </div>
+
     <script type="module">
         // Firebase Modülleri
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-analytics.js";
         import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, getDocs } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+        // Firestore için writeBatch'i de import etmeyi unutmayın!
+        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 
         // KENDİ FIREBASE YAPILANDIRMANIZ BURADA
         const firebaseConfig = {
@@ -365,6 +390,7 @@
 
         let allCategories = new Set(); // Veritabanındaki tüm benzersiz kelime türleri
         let selectedCategories = ['Tümü']; // Oyun için seçilen kategoriler (varsayılan: Tümü)
+        let duplicateCheckMode = 'both'; // Tekrarlayan kelime kontrol modu (varsayılan: both)
 
         // Firebase değişkenleri
         let db;
@@ -511,6 +537,11 @@
 
         const categorySelectionContainer = document.getElementById('category-selection-container');
 
+        const duplicateOptionsModal = document.getElementById('duplicate-options-modal');
+        const duplicateCheckModeRadios = document.querySelectorAll('input[name="duplicateCheckMode"]');
+        const startDuplicateCheckButton = document.getElementById('start-duplicate-check-button');
+
+
         confirmYesButton.addEventListener('click', () => {
             if (confirmActionCallback) {
                 confirmActionCallback(true);
@@ -558,6 +589,7 @@
             window.closeModal('error-modal');   // Açık olan hata modalını kapat
             window.closeModal('edit-word-modal'); // Açık olan düzenleme modalını kapat
             window.closeModal('confirm-modal'); // Açık olan onay modalını kapat
+            window.closeModal('duplicate-options-modal'); // Açık olan duplicate options modalını kapat
 
             // Ana menüyü göster
             mainMenu.classList.remove('hidden');
@@ -1178,12 +1210,13 @@
                                 excelProgressContainer.classList.remove('hidden'); // Progress bar'ı göster
                                 excelProgressBar.style.width = '0%'; // Progress bar'ı sıfırla
 
-                                const BATCH_SIZE = 499; // Firestore batch'leri 500 işlemle sınırlıdır
-                                let currentBatch = db.batch();
+                                // Firestore batch'leri 500 işlemle sınırlıdır
+                                const BATCH_SIZE = 499;
+                                let batch = writeBatch(db); // writeBatch(db) olarak düzeltildi
                                 let batchCount = 0;
 
                                 for (const doc of snapshot.docs) {
-                                    currentBatch.delete(doc.ref);
+                                    batch.delete(doc.ref);
                                     deletedCount++;
                                     batchCount++;
 
@@ -1192,8 +1225,8 @@
                                     excelProgressBar.style.width = `${progress}%`;
 
                                     if (batchCount === BATCH_SIZE) {
-                                        await currentBatch.commit();
-                                        currentBatch = db.batch();
+                                        await batch.commit();
+                                        batch = writeBatch(db); // Yeni batch başlat
                                         batchCount = 0;
                                         console.log("Batch commit edildi.");
                                     }
@@ -1201,7 +1234,7 @@
 
                                 // Kalan işlemleri commit et
                                 if (batchCount > 0) {
-                                    await currentBatch.commit();
+                                    await batch.commit();
                                     console.log("Son batch commit edildi.");
                                 }
 
@@ -1230,12 +1263,37 @@
         });
 
         // --- Tekrarlayan Kelimeleri Temizle İşlevi ---
-        removeDuplicatesButton.addEventListener('click', async () => {
+
+        // Tekrarlayan kelime kontrol modunu seçme modalını açar
+        removeDuplicatesButton.addEventListener('click', () => {
             if (!userId) {
                 displayError("Tekrarlayan kelimeleri temizlemek için giriş yapmış olmalısınız.");
                 return;
             }
+            // Varsayılan seçeneği işaretle
+            document.querySelector('input[name="duplicateCheckMode"][value="both"]').checked = true;
+            duplicateCheckMode = 'both'; // Modu varsayılana sıfırla
+            window.showModal('duplicate-options-modal');
+        });
 
+        // Tekrarlayan kelime kontrol modunu günceller
+        duplicateCheckModeRadios.forEach(radio => {
+            radio.addEventListener('change', (event) => {
+                duplicateCheckMode = event.target.value;
+            });
+        });
+
+        // Tekrarlayan kelime kontrolünü başlatan buton
+        startDuplicateCheckButton.addEventListener('click', async () => {
+            window.closeModal('duplicate-options-modal'); // Seçenek modalını kapat
+            await processDuplicateRemoval(duplicateCheckMode);
+        });
+
+        /**
+         * Belirtilen moda göre tekrarlayan kelimeleri bulur ve silme işlemini başlatır.
+         * @param {string} mode 'both', 'italianOnly', 'turkishOnly'
+         */
+        async function processDuplicateRemoval(mode) {
             try {
                 const q = query(wordsCollectionRef);
                 const snapshot = await getDocs(q);
@@ -1246,19 +1304,29 @@
                     return;
                 }
 
-                const uniqueWordsMap = new Map(); // Key: "normalizedItalian_normalizedTurkish", Value: first encountered doc
+                const uniqueWordsMap = new Map(); // Key: normalized string, Value: first encountered doc
                 const duplicatesToDelete = [];
                 const duplicateDetailsForDisplay = [];
 
                 snapshot.forEach(doc => {
                     const data = doc.data();
+                    let normalizedKey = '';
+
+                    // Normalizasyon ve küçük harfe çevirme
                     const normalizedItalian = (data.italian || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                     const normalizedTurkish = (data.turkish || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                    const normalizedKey = `${normalizedItalian}_${normalizedTurkish}`;
+
+                    if (mode === 'italianOnly') {
+                        normalizedKey = normalizedItalian;
+                    } else if (mode === 'turkishOnly') {
+                        normalizedKey = normalizedTurkish;
+                    } else { // 'both'
+                        normalizedKey = `${normalizedItalian}_${normalizedTurkish}`;
+                    }
 
                     if (uniqueWordsMap.has(normalizedKey)) {
                         duplicatesToDelete.push(doc.id); // Bu bir kopya, silinecek
-                        duplicateDetailsForDisplay.push(`${capitalizeFirstLetter(data.italian, 'it-IT')} - ${capitalizeFirstLetter(data.turkish, 'tr-TR')} (ID: ${doc.id.substring(0, 6)}...)`);
+                        duplicateDetailsForDisplay.push(`${capitalizeFirstLetter(data.italian, 'it-IT')} - ${capitalizeFirstLetter(data.turkish, 'tr-TR')} (Tür: ${capitalizeFirstLetter(data.type || 'Belirtilmemiş', 'tr-TR')})`);
                     } else {
                         uniqueWordsMap.set(normalizedKey, doc); // İlk kez görülen kelime, saklanacak
                     }
@@ -1289,11 +1357,11 @@
                             excelProgressBar.style.width = '0%';
 
                             const BATCH_SIZE = 499;
-                            let currentBatch = db.batch();
+                            let batch = writeBatch(db); // writeBatch(db) olarak düzeltildi
                             let batchCount = 0;
 
                             for (const docId of duplicatesToDelete) {
-                                currentBatch.delete(doc(db, `users/${userId}/words`, docId));
+                                batch.delete(doc(db, `users/${userId}/words`, docId));
                                 deletedCount++;
                                 batchCount++;
 
@@ -1302,15 +1370,15 @@
                                 excelProgressBar.style.width = `${progress}%`;
 
                                 if (batchCount === BATCH_SIZE) {
-                                    await currentBatch.commit();
-                                    currentBatch = db.batch();
+                                    await batch.commit();
+                                    batch = writeBatch(db); // Yeni batch başlat
                                     batchCount = 0;
                                     console.log("Batch commit edildi (tekrarlayan silme).");
                                 }
                             }
 
                             if (batchCount > 0) {
-                                await currentBatch.commit();
+                                await batch.commit();
                                 console.log("Son batch commit edildi (tekrarlayan silme).");
                             }
 
@@ -1340,7 +1408,8 @@
                 excelProgressContainer.classList.add('hidden');
                 excelProgressBar.style.width = '0%';
             }
-        });
+        }
+
 
         // --- Kelimeleri Dışa Aktar İşlevi ---
         exportWordsButton.addEventListener('click', async () => {
