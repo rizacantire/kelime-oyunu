@@ -1180,6 +1180,10 @@
                 displayError("Kelimeleri silmek için giriş yapmış olmalısınız.");
                 return;
             }
+            if (!db) { // db nesnesinin varlığını kontrol et
+                displayError("Veritabanı bağlantısı henüz hazır değil. Lütfen birkaç saniye bekleyip tekrar deneyin.");
+                return;
+            }
 
             showConfirmModal("Tüm kelimelerinizi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz!", async (firstConfirmed) => {
                 if (firstConfirmed) {
@@ -1192,6 +1196,7 @@
                                 if (snapshot.empty) {
                                     excelImportStatus.className = 'text-sm mt-3 text-orange-600';
                                     excelImportStatus.textContent = "Silinecek kelime bulunamadı.";
+                                    console.log("Silinecek kelime bulunamadı.");
                                     return;
                                 }
 
@@ -1210,8 +1215,9 @@
                                 excelProgressContainer.classList.remove('hidden'); // Progress bar'ı göster
                                 excelProgressBar.style.width = '0%'; // Progress bar'ı sıfırla
 
-                                // Firestore batch'leri 500 işlemle sınırlıdır
-                                const BATCH_SIZE = 499;
+                                console.log(`Toplam ${totalToDelete} kelime silinecek.`);
+
+                                const BATCH_SIZE = 499; // Firestore batch'leri 500 işlemle sınırlıdır
                                 let batch = writeBatch(db); // writeBatch(db) olarak düzeltildi
                                 let batchCount = 0;
 
@@ -1225,17 +1231,17 @@
                                     excelProgressBar.style.width = `${progress}%`;
 
                                     if (batchCount === BATCH_SIZE) {
+                                        console.log(`Batch commit ediliyor: ${deletedCount}/${totalToDelete} kelime silindi.`);
                                         await batch.commit();
                                         batch = writeBatch(db); // Yeni batch başlat
                                         batchCount = 0;
-                                        console.log("Batch commit edildi.");
                                     }
                                 }
 
                                 // Kalan işlemleri commit et
                                 if (batchCount > 0) {
+                                    console.log(`Son batch commit ediliyor: ${deletedCount}/${totalToDelete} kelime silindi.`);
                                     await batch.commit();
-                                    console.log("Son batch commit edildi.");
                                 }
 
                                 excelImportStatus.className = 'text-sm mt-3 text-green-600';
@@ -1246,6 +1252,8 @@
                             } catch (error) {
                                 console.error("Tüm kelimeler silinirken hata oluştu: ", error);
                                 displayError("Tüm kelimeler silinirken bir hata oluştu: " + error.message);
+                                excelImportStatus.className = 'text-sm mt-3 text-red-600';
+                                excelImportStatus.textContent = `Hata: ${error.message}`;
                             } finally {
                                 deleteAllWordsButton.disabled = false;
                                 deleteAllWordsButton.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -1256,8 +1264,16 @@
                                 excelProgressContainer.classList.add('hidden'); // Progress bar'ı gizle
                                 excelProgressBar.style.width = '0%'; // Progress bar'ı sıfırla
                             }
+                        } else {
+                            excelImportStatus.className = 'text-sm mt-3 text-gray-600';
+                            excelImportStatus.textContent = "Tüm kelimeleri silme işlemi iptal edildi.";
+                            console.log("Tüm kelimeleri silme işlemi iptal edildi.");
                         }
                     });
+                } else {
+                    excelImportStatus.className = 'text-sm mt-3 text-gray-600';
+                    excelImportStatus.textContent = "Tüm kelimeleri silme işlemi iptal edildi.";
+                    console.log("Tüm kelimeleri silme işlemi iptal edildi.");
                 }
             });
         });
@@ -1268,6 +1284,10 @@
         removeDuplicatesButton.addEventListener('click', () => {
             if (!userId) {
                 displayError("Tekrarlayan kelimeleri temizlemek için giriş yapmış olmalısınız.");
+                return;
+            }
+            if (!db) { // db nesnesinin varlığını kontrol et
+                displayError("Veritabanı bağlantısı henüz hazır değil. Lütfen birkaç saniye bekleyip tekrar deneyin.");
                 return;
             }
             // Varsayılan seçeneği işaretle
@@ -1408,7 +1428,7 @@
                 excelProgressContainer.classList.add('hidden');
                 excelProgressBar.style.width = '0%';
             }
-        }
+        });
 
 
         // --- Kelimeleri Dışa Aktar İşlevi ---
