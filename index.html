@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>İtalyanca-Türkçe Kelime Oyunu</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS (xlsx) kütüphanesi CDN'den -->
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Açık gri arka plan */
+        }
+        .container {
+            max-width: 900px; /* Genişletilmiş konteyner */
+        }
+        input[type="file"] {
+            display: none; /* Dosya seçme butonunu gizle */
+        }
+        .custom-file-upload {
+            border: 2px dashed #93c5fd; /* Mavi dashed border */
+            padding: 1rem 2rem;
+            cursor: pointer;
+            border-radius: 0.75rem; /* rounded-lg */
+            transition: all 0.2s ease-in-out;
+        }
+        .custom-file-upload:hover {
+            background-color: #e0f2fe; /* Hafif mavi arka plan */
+            border-color: #60a5fa; /* Koyu mavi border */
+        }
+        /* Modal Stilleri */
+        .modal {
+            display: none; /* Varsayılan olarak gizli */
+            position: fixed; /* Ekranı kapla */
+            z-index: 1000; /* Diğer her şeyin üzerinde */
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto; /* İçerik taşarsa kaydırma */
+            background-color: rgba(0,0,0,0.4); /* Yarı şeffaf siyah arka plan */
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fff;
+            margin: auto;
+            padding: 2.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            max-width: 90%;
+            width: 400px;
+            text-align: center;
+        }
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: #000;
+            text-decoration: none;
+        }
+        .button-primary {
+            background-image: linear-gradient(to right, #6EE7B7, #34D399, #10B981);
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .button-primary:hover {
+            background-image: linear-gradient(to right, #34D399, #10B981, #059669);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+        }
+        .button-secondary {
+            background-color: #E2E8F0;
+            color: #4A5568;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        .button-secondary:hover {
+            background-color: #CBD5E0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transform: translateY(-1px);
+        }
+        /* Yeni Onay Modalı Stilleri */
+        #confirm-modal .modal-content {
+            width: 500px;
+        }
+        /* Google Giriş Butonu Stili */
+        .google-signin-button {
+            background-color: #4285F4; /* Google Blue */
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 0.75rem;
+            font-weight: bold;
+            font-size: 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            transition: background-color 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 320px; /* Daha dar bir genişlik */
+        }
+        .google-signin-button:hover {
+            background-color: #357ae8;
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+        }
+        .google-icon {
+            width: 24px;
+            height: 24px;
+            background-color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px;
+        }
+        .google-icon img {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="container bg-white p-8 rounded-xl shadow-lg flex flex-col items-center gap-6 relative">
+        <!-- Her zaman görünür Ana Menü butonu -->
+        <button id="back-to-main-always" class="absolute top-4 left-4 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg text-sm shadow-md transition duration-200 ease-in-out z-50">
+            Ana Menü
+        </button>
+
+        <!-- Kullanıcı Bilgisi ve Çıkış Butonu -->
+        <div id="user-info-display" class="absolute top-4 right-4 text-xs text-gray-600 bg-gray-100 px-3 py-1 rounded-md shadow-sm flex items-center gap-2">
+            <span id="user-display-text">Yükleniyor...</span>
+            <button id="sign-out-button" class="ml-2 px-2 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200 text-xs hidden">Çıkış Yap</button>
+        </div>
+
+        <h1 class="text-4xl font-bold text-gray-800 mb-4 text-center">İtalyanca-Türkçe Kelime Oyunu</h1>
+
+        <!-- Ana Menü / Mod Seçimi -->
+        <div id="main-menu" class="w-full flex flex-col items-center justify-center gap-6 p-6">
+            <button id="google-signin-button" class="google-signin-button">
+                <span class="google-icon">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/4/4a/Logo_Google__G__Nouvelle_version.svg" alt="Google Logo">
+                </span>
+                Google ile Giriş Yap
+            </button>
+            <button id="start-game-mode-button" class="button-primary px-10 py-5 text-white font-bold rounded-xl text-2xl w-full max-w-sm hidden">Kelime Oyunu Oyna</button>
+            <button id="manage-words-mode-button" class="button-secondary px-10 py-5 text-gray-800 font-bold rounded-xl text-2xl w-full max-w-sm hidden">Kelimeleri Yönet</button>
+
+            <!-- Bilgilendirme Kutusu -->
+            <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded-lg mt-6 w-full max-w-lg" role="alert">
+                <p class="font-bold">Önemli Bilgilendirme:</p>
+                <p class="text-sm">Uygulama verilerinizi kaydetmek için Firebase kullanır. Google ile giriş yaparak, kelimelerinize her yerden (farklı tarayıcılar veya cihazlar) erişebilirsiniz.</p>
+                <p class="text-sm mt-2">Excel'den kelime aktarırken, "Excel'den Aktar" butonuna bir kez basmanız yeterlidir. Program, dosyadaki tüm kelimeleri otomatik olarak tek tek veritabanına ekleyecektir. İşlem durumu için aşağıdaki mesajları takip edin.</p>
+            </div>
+        </div>
+
+        <!-- Kelime Oyunu Alanı -->
+        <div id="game-setup-section" class="w-full flex flex-col items-center justify-center gap-4 p-6 border-b border-gray-200 hidden">
+            <p class="text-xl font-semibold text-gray-700">Oyun Ayarları</p>
+            <div class="w-full max-w-xs mt-4">
+                <label for="num-words-input" class="block text-gray-700 text-sm font-bold mb-2">Kaç Kelime Sorulsun?</label>
+                <input type="number" id="num-words-input" value="20" min="1"
+                       class="shadow appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:border-blue-500 text-center text-xl">
+                <p id="word-count-error" class="text-red-500 text-xs italic mt-1 hidden">Lütfen geçerli bir sayı girin.</p>
+            </div>
+
+            <div class="w-full max-w-xs mt-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2">Oyun Yönü:</label>
+                <div class="flex justify-center gap-4">
+                    <label class="inline-flex items-center">
+                        <input type="radio" name="gameDirection" value="italiantoturkish" class="form-radio text-blue-600" checked>
+                        <span class="ml-2 text-gray-700 font-medium">İtalyanca -> Türkçe</span>
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="radio" name="gameDirection" value="turkishtoitalian" class="form-radio text-blue-600">
+                        <span class="ml-2 text-gray-700 font-medium">Türkçe -> İtalyanca</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Kategori Seçimi -->
+            <div class="w-full max-w-md mt-6 bg-gray-50 p-4 rounded-lg shadow-inner">
+                <label class="block text-gray-700 text-sm font-bold mb-2">Kelime Türleri:</label>
+                <div id="category-selection-container" class="flex flex-wrap gap-x-4 gap-y-2 justify-center">
+                    <!-- Kategoriler buraya JS ile yüklenecek -->
+                    <p class="text-gray-500 text-sm">Kategoriler yükleniyor...</p>
+                </div>
+            </div>
+
+            <button id="start-game-button" class="button-primary px-8 py-3 text-white font-bold rounded-xl text-xl mt-4 opacity-50 cursor-not-allowed" disabled>Oyunu Başlat</button>
+            <button id="back-to-main-from-game-setup" class="button-secondary px-6 py-2 text-gray-800 font-bold rounded-xl text-lg mt-2">Ana Menüye Dön</button>
+        </div>
+
+        <!-- Oyun Alanı -->
+        <div id="game-section" class="w-full flex flex-col items-center gap-6 p-6 hidden">
+            <div class="flex justify-between w-full text-lg font-medium text-gray-700">
+                <span id="word-counter">Kelime: Yükleniyor...</span>
+                <span id="score-display">Puan: 0</span>
+            </div>
+            <p id="question-word" class="text-6xl font-extrabold text-blue-600 my-8">Yükleniyor...</p>
+            <input type="text" id="user-guess" class="w-full p-4 text-center text-2xl border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500" placeholder="Karşılığını yazın" autocomplete="off">
+            <div class="flex gap-4 mt-4">
+                <button id="check-answer-button" class="button-primary px-8 py-4 text-white font-bold rounded-xl text-xl">Cevabı Kontrol Et</button>
+                <button id="next-word-button" class="button-secondary px-8 py-4 text-gray-800 font-bold rounded-xl text-xl hidden">Sonraki Kelime</button>
+            </div>
+            <p id="feedback-message" class="text-xl font-semibold mt-4 text-center min-h-[30px]"></p>
+        </div>
+
+        <!-- Kelime Yönetimi Alanı -->
+        <div id="manage-words-section" class="w-full flex flex-col items-center gap-6 p-6 hidden">
+            <h2 class="text-3xl font-bold text-gray-800 mb-4">Kelimeleri Yönet</h2>
+
+            <!-- Yeni Kelime Ekle -->
+            <div class="bg-blue-50 p-6 rounded-lg w-full max-w-md shadow-md">
+                <h3 class="text-2xl font-semibold text-gray-700 mb-4">Yeni Kelime Ekle</h3>
+                <input type="text" id="add-italian-word" placeholder="İtalyanca Kelime" class="w-full p-3 mb-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                <input type="text" id="add-turkish-word" placeholder="Türkçe Karşılığı" class="w-full p-3 mb-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                <input type="text" id="add-word-type" placeholder="Kelime Türü (örn: Renkler, Sayılar)" class="w-full p-3 mb-4 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                <button id="add-word-button" class="button-primary w-full py-3 text-white font-bold rounded-lg">Kelime Ekle</button>
+            </div>
+
+            <!-- Excel Dosyasından Kelime Aktar -->
+            <div class="bg-yellow-50 p-6 rounded-lg w-full max-w-md shadow-md mt-6">
+                <h3 class="text-2xl font-semibold text-gray-700 mb-4">Excel Dosyasından Kelime Aktar</h3>
+                <p class="text-sm text-gray-600 mb-3">
+                    Lütfen bilgisayarınızdan Excel dosyasını (.xlsx) seçin. Dosyanızın ilk satırında 'İtalyanca', 'Türkçe' ve isteğe bağlı olarak 'Tür' veya 'Category' sütun başlıkları olmalıdır.
+                </p>
+                <label for="excel-file-input" class="custom-file-upload w-full text-center text-gray-700 font-medium">
+                    Dosya Seç...
+                </label>
+                <input type="file" id="excel-file-input" accept=".xlsx">
+                <p id="file-name-display" class="text-sm text-gray-500 mt-2"></p>
+                <button id="upload-excel-button" class="button-primary w-full py-3 text-white font-bold rounded-lg opacity-50 cursor-not-allowed" disabled>Excel'den Aktar</button>
+                <!-- Progress bar container -->
+                <div id="excel-progress-container" class="w-full bg-gray-200 rounded-full h-2.5 mt-4 hidden">
+                    <div id="excel-progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+                <p id="excel-import-status" class="text-sm mt-3 text-center"></p>
+            </div>
+
+            <!-- Mevcut Kelimeler -->
+            <div class="w-full bg-white p-6 rounded-lg shadow-md mt-6">
+                <h3 class="text-2xl font-semibold text-gray-700 mb-4">Mevcut Kelimeler (<span id="total-word-count">0</span>)</h3>
+                <div id="word-list-container" class="overflow-y-auto max-h-96 border border-gray-200 rounded-lg p-2">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">İtalyanca</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Türkçe</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tür</th>
+                                <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody id="words-table-body" class="bg-white divide-y divide-gray-200">
+                            <!-- Kelimeler buraya JS ile yüklenecek -->
+                            <tr><td colspan="4" class="text-center py-4 text-gray-500">Henüz kelime yok. Yeni kelimeler ekleyin!</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Yeni Tekrarlayan Kelimeleri Temizle Butonu -->
+            <button id="remove-duplicates-button" class="bg-purple-500 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg text-lg mt-4 shadow-md transition duration-200 ease-in-out">
+                Tekrarlayan Kelimeleri Temizle
+            </button>
+            <!-- Tüm Kelimeleri Sil Butonu -->
+            <button id="delete-all-words-button" class="bg-red-500 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg text-lg mt-6 shadow-md transition duration-200 ease-in-out">
+                Tüm Kelimeleri Sil
+            </button>
+            <button id="back-to-main-from-manage" class="button-secondary px-6 py-2 text-gray-800 font-bold rounded-xl text-lg mt-4">Ana Menüye Dön</button>
+        </div>
+    </div>
+
+    <!-- Sonuç Modalı -->
+    <div id="result-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="window.closeModal('result-modal')">&times;</span>
+            <h2 class="text-3xl font-bold text-gray-800 mb-4">Oyun Bitti! 🎉</h2>
+            <p id="final-score" class="text-2xl font-semibold text-blue-700 mb-6"></p>
+            <div id="incorrect-words-list" class="text-left text-gray-700 mt-4 overflow-y-auto max-h-60 px-4"></div>
+            <button class="button-primary px-6 py-3 text-white font-bold rounded-xl text-lg mt-6" onclick="window.restartGame()">Tekrar Başla</button>
+        </div>
+    </div>
+
+    <!-- Hata Modalı -->
+    <div id="error-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="window.closeModal('error-modal')">&times;</span>
+            <h2 class="text-3xl font-bold text-red-600 mb-4">Hata! 🚨</h2>
+            <p id="error-message" class="text-lg text-gray-700 mb-6"></p>
+            <button class="button-secondary px-6 py-3 text-gray-800 font-bold rounded-xl text-lg" onclick="window.closeModal('error-modal')">Tamam</button>
+        </div>
+    </div>
+
+    <!-- Düzenleme Modalı -->
+    <div id="edit-word-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="window.closeModal('edit-word-modal')">&times;</span>
+            <h2 class="text-3xl font-bold text-gray-800 mb-4">Kelimeyi Düzenle</h2>
+            <input type="text" id="edit-italian-word" placeholder="İtalyanca Kelime" class="w-full p-3 mb-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+            <input type="text" id="edit-turkish-word" placeholder="Türkçe Karşılığı" class="w-full p-3 mb-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+            <input type="text" id="edit-word-type" placeholder="Kelime Türü (örn: Renkler, Sayılar)" class="w-full p-3 mb-4 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+            <button id="save-edit-button" class="button-primary w-full py-3 text-white font-bold rounded-lg">Kaydet</button>
+            <button class="button-secondary w-full py-3 text-gray-800 font-bold rounded-lg mt-2" onclick="window.closeModal('edit-word-modal')">İptal</button>
+        </div>
+    </div>
+
+    <!-- Onay Modalı (Silme İşlemi İçin) -->
+    <div id="confirm-modal" class="modal">
+        <div class="modal-content">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Onay Gerekli</h2>
+            <p id="confirm-message" class="text-lg text-gray-700 mb-6"></p>
+            <div class="flex justify-center gap-4">
+                <button id="confirm-yes-button" class="button-primary px-6 py-3 text-white font-bold rounded-lg">Evet</button>
+                <button id="confirm-no-button" class="button-secondary px-6 py-3 text-gray-800 font-bold rounded-lg">Hayır</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Firebase Modülleri
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-analytics.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, getDocs } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+
+        // KENDİ FIREBASE YAPILANDIRMANIZ BURADA
+        const firebaseConfig = {
+            apiKey: "AIzaSyBX99YL08HxGPqywBBuELGeSFaQ7aqHsdE",
+            authDomain: "italyanca-sozluk.firebaseapp.com",
+            projectId: "italyanca-sozluk",
+            storageBucket: "italyanca-sozluk.firebasestorage.app",
+            messagingSenderId: "773584885746",
+            appId: "1:773584885746:web:7bfaf9c406bb72a38a3d6b",
+            measurementId: "G-K9J3K1HNQ4"
+        };
+        // Kendi Firebase yapılandırmanız yukarıdaki gibi buraya yapıştırıldı.
+
+
+        let allWords = []; // Tüm kelimeler burada saklanacak: [{id: "...", italian: "...", turkish: "...", type: "..."}, ...]
+        let wordsToGuess = []; // Mevcut oyunda sorulacak kelimeler
+        let currentWordIndex = 0; // Mevcut kelimenin indeksi
+        let score = 0; // Oyuncunun puanı
+        let incorrectlyGuessedWords = []; // Yanlış bilinen kelimeler
+        let gameWordCount = 20; // Oyuncunun belirlediği kelime sayısı
+        let gameDirection = 'italiantoturkish'; // Oyun yönü
+        let currentEditingDocId = null; // Düzenlenmekte olan kelimenin ID'si
+        let confirmActionCallback = null; // Onay modalı için callback fonksiyonu
+
+        let allCategories = new Set(); // Veritabanındaki tüm benzersiz kelime türleri
+        let selectedCategories = ['Tümü']; // Oyun için seçilen kategoriler (varsayılan: Tümü)
+
+        // Firebase değişkenleri
+        let db;
+        let auth;
+        let userId; // Giriş yapan kullanıcının UID'si
+        let userEmail; // Giriş yapan kullanıcının e-posta adresi
+        let wordsCollectionRef;
+        let currentAppId; // Kendi Firebase projenizin projectId'si olacak
+
+        // --- Modallar için Yardımcı Fonksiyonlar ---
+        window.showModal = function(modalId) {
+            document.getElementById(modalId).style.display = 'flex';
+        }
+        window.closeModal = function(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+            if (modalId === 'edit-word-modal') {
+                currentEditingDocId = null;
+            }
+            if (modalId === 'confirm-modal') {
+                confirmActionCallback = null;
+            }
+        }
+        function displayError(message) {
+            const errorMessageDisplay = document.getElementById('error-message');
+            errorMessageDisplay.textContent = message;
+            window.showModal('error-modal');
+        }
+        function showConfirmModal(message, callback) {
+            const confirmMessage = document.getElementById('confirm-message');
+            confirmMessage.textContent = message;
+            confirmActionCallback = callback;
+            window.showModal('confirm-modal');
+        }
+
+        // UI Elementleri
+        const mainMenu = document.getElementById('main-menu');
+        const googleSigninButton = document.getElementById('google-signin-button');
+        const startGameModeButton = document.getElementById('start-game-mode-button');
+        const manageWordsModeButton = document.getElementById('manage-words-mode-button');
+        const gameSetupSection = document.getElementById('game-setup-section');
+        const manageWordsSection = document.getElementById('manage-words-section');
+        const backToMainFromGameSetup = document.getElementById('back-to-main-from-game-setup');
+        const backToMainFromManage = document.getElementById('back-to-main-from-manage');
+        const backToMainAlwaysButton = document.getElementById('back-to-main-always');
+        const userInfoDisplay = document.getElementById('user-info-display');
+        const userDisplayText = document.getElementById('user-display-text');
+        const signOutButton = document.getElementById('sign-out-button');
+
+        const numWordsInput = document.getElementById('num-words-input');
+        const wordCountError = document.getElementById('word-count-error');
+        const gameDirectionRadios = document.querySelectorAll('input[name="gameDirection"]');
+        const startGameButton = document.getElementById('start-game-button');
+        const gameSection = document.getElementById('game-section');
+        const questionWordDisplay = document.getElementById('question-word');
+        const userGuessInput = document.getElementById('user-guess');
+        const checkAnswerButton = document.getElementById('check-answer-button');
+        const nextWordButton = document.getElementById('next-word-button');
+        const feedbackMessage = document.getElementById('feedback-message');
+        const wordCounter = document.getElementById('word-counter');
+        const scoreDisplay = document.getElementById('score-display');
+        const resultModal = document.getElementById('result-modal');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const incorrectWordsListDiv = document.getElementById('incorrect-words-list');
+        const errorModal = document.getElementById('error-modal');
+        const errorMessageDisplay = document.getElementById('error-message');
+
+        const addItalianWordInput = document.getElementById('add-italian-word');
+        const addTurkishWordInput = document.getElementById('add-turkish-word');
+        const addWordTypeInput = document.getElementById('add-word-type'); // Yeni
+        const addWordButton = document.getElementById('add-word-button');
+        const wordsTableBody = document.getElementById('words-table-body');
+        const totalWordCountSpan = document.getElementById('total-word-count');
+
+        // Excel Dosyası yükleme elementleri
+        const excelFileInput = document.getElementById('excel-file-input');
+        const fileNameDisplay = document.getElementById('file-name-display');
+        const uploadExcelButton = document.getElementById('upload-excel-button');
+        const excelImportStatus = document.getElementById('excel-import-status');
+        const excelProgressContainer = document.getElementById('excel-progress-container');
+        const excelProgressBar = document.getElementById('excel-progress-bar');
+
+        // Yeni "Tüm Kelimeleri Sil" butonu
+        const deleteAllWordsButton = document.getElementById('delete-all-words-button');
+        // Yeni "Tekrarlayan Kelimeleri Temizle" butonu
+        const removeDuplicatesButton = document.getElementById('remove-duplicates-button');
+
+        const editWordModal = document.getElementById('edit-word-modal');
+        const editItalianWordInput = document.getElementById('edit-italian-word');
+        const editTurkishWordInput = document.getElementById('edit-turkish-word');
+        const editWordTypeInput = document.getElementById('edit-word-type'); // Yeni
+        const saveEditButton = document.getElementById('save-edit-button');
+
+        const confirmYesButton = document.getElementById('confirm-yes-button');
+        const confirmNoButton = document.getElementById('confirm-no-button');
+
+        const categorySelectionContainer = document.getElementById('category-selection-container'); // Yeni
+
+        confirmYesButton.addEventListener('click', () => {
+            if (confirmActionCallback) {
+                confirmActionCallback(true);
+            }
+            window.closeModal('confirm-modal');
+        });
+
+        confirmNoButton.addEventListener('click', () => {
+            if (confirmActionCallback) {
+                confirmActionCallback(false);
+            }
+            window.closeModal('confirm-modal');
+        });
+
+        // --- Ana Menü ve Mod Değişimi ---
+        startGameModeButton.addEventListener('click', () => {
+            mainMenu.classList.add('hidden');
+            gameSetupSection.classList.remove('hidden');
+            updateStartButtonState();
+        });
+
+        manageWordsModeButton.addEventListener('click', () => {
+            mainMenu.classList.add('hidden');
+            manageWordsSection.classList.remove('hidden');
+            renderWordsTable(); // Kelime yönetimi ekranına geçince tabloyu güncelle
+        });
+
+        backToMainFromGameSetup.addEventListener('click', () => {
+            gameSetupSection.classList.add('hidden');
+            mainMenu.classList.remove('hidden');
+        });
+
+        backToMainFromManage.addEventListener('click', () => {
+            manageWordsSection.classList.add('hidden');
+            mainMenu.classList.remove('hidden');
+        });
+
+        // Yeni eklenen "Her zaman Ana Menüye Dön" butonunun işlevi
+        backToMainAlwaysButton.addEventListener('click', () => {
+            // Tüm bölümleri gizle
+            gameSetupSection.classList.add('hidden');
+            gameSection.classList.add('hidden');
+            manageWordsSection.classList.add('hidden');
+            window.closeModal('result-modal'); // Açık olan sonuç modalını kapat
+            window.closeModal('error-modal');   // Açık olan hata modalını kapat
+            window.closeModal('edit-word-modal'); // Açık olan düzenleme modalını kapat
+            window.closeModal('confirm-modal'); // Açık olan onay modalını kapat
+
+            // Ana menüyü göster
+            mainMenu.classList.remove('hidden');
+
+            // Oyun durumunu sıfırla
+            resetGameInternal();
+            incorrectlyGuessedWords = []; // Yanlış bilinen kelimeleri temizle
+        });
+
+        // --- Google ile Giriş Yapma ---
+        googleSigninButton.addEventListener('click', async () => {
+            const provider = new GoogleAuthProvider();
+            try {
+                await signInWithPopup(auth, provider);
+                // onAuthStateChanged dinleyicisi kullanıcı durumunu yönetecek
+            } catch (error) {
+                console.error("Google ile giriş hatası:", error);
+                displayError("Google ile giriş yapılırken bir hata oluştu: " + error.message);
+            }
+        });
+
+        // --- Çıkış Yapma ---
+        signOutButton.addEventListener('click', async () => {
+            showConfirmModal("Oturumu kapatmak istediğinizden emin misiniz?", async (confirmed) => {
+                if (confirmed) {
+                    try {
+                        await signOut(auth);
+                        console.log("Oturum kapatıldı.");
+                        // onAuthStateChanged dinleyicisi kullanıcı durumunu yönetecek
+                    } catch (error) {
+                        console.error("Çıkış yapma hatası:", error);
+                        displayError("Çıkış yapılırken bir hata oluştu: " + error.message);
+                    }
+                }
+            });
+        });
+
+        // --- Kelime Oyunu Ayarları ve Başlatma ---
+        numWordsInput.addEventListener('input', updateStartButtonState);
+        numWordsInput.addEventListener('blur', updateStartButtonState);
+
+        gameDirectionRadios.forEach(radio => {
+            radio.addEventListener('change', (event) => {
+                gameDirection = event.target.value;
+            });
+        });
+
+        function updateStartButtonState() {
+            const requestedCount = parseInt(numWordsInput.value, 10);
+            const isValidNumber = !isNaN(requestedCount) && requestedCount > 0;
+
+            // Seçili kategorilere göre filtrelenmiş kelime sayısını al
+            const filteredWordsCount = getFilteredWords().length;
+            const hasEnoughWords = filteredWordsCount >= requestedCount;
+
+            if (isValidNumber && hasEnoughWords) {
+                startGameButton.disabled = false;
+                startGameButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                wordCountError.classList.add('hidden');
+            } else {
+                startGameButton.disabled = true;
+                startGameButton.classList.add('opacity-50', 'cursor-not-allowed');
+                if (!isValidNumber) {
+                    wordCountError.textContent = "Lütfen pozitif bir sayı girin.";
+                    wordCountError.classList.remove('hidden');
+                } else if (filteredWordsCount === 0) {
+                     wordCountError.textContent = "Seçili kategorilerde kelime bulunamadı. Lütfen kelime ekleyin veya farklı kategori seçin.";
+                     wordCountError.classList.remove('hidden');
+                } else if (!hasEnoughWords) {
+                    wordCountError.textContent = `Seçili kategorilerde en az ${requestedCount} kelimeye ihtiyacınız var. Yüklü: ${filteredWordsCount}`;
+                    wordCountError.classList.remove('hidden');
+                }
+            }
+            if (!numWordsInput.value || numWordsInput.value.trim() === "") {
+                wordCountError.textContent = "Lütfen bir kelime sayısı girin.";
+                wordCountError.classList.remove('hidden');
+            }
+        }
+
+        // Seçili kategorilere göre kelimeleri filtreleyen yardımcı fonksiyon
+        function getFilteredWords() {
+            if (selectedCategories.includes('Tümü') || selectedCategories.length === 0) {
+                return allWords;
+            }
+            return allWords.filter(word =>
+                word.type && selectedCategories.includes(word.type)
+            );
+        }
+
+
+        startGameButton.addEventListener('click', () => {
+            const requestedCount = parseInt(numWordsInput.value, 10);
+            const filteredWords = getFilteredWords();
+
+            if (isNaN(requestedCount) || requestedCount <= 0 || requestedCount > filteredWords.length) {
+                displayError(`Lütfen geçerli bir kelime sayısı girin. (1 - ${filteredWords.length} arası)`);
+                return;
+            }
+            gameWordCount = requestedCount;
+
+            gameSetupSection.classList.add('hidden');
+            gameSection.classList.remove('hidden');
+            window.restartGame(); // Global olarak çağır
+        });
+
+        // --- Oyun Mantığı ---
+        function resetGameInternal() {
+            currentWordIndex = 0;
+            score = 0;
+            userGuessInput.value = '';
+            feedbackMessage.textContent = '';
+            checkAnswerButton.classList.remove('hidden');
+            nextWordButton.classList.add('hidden');
+            scoreDisplay.textContent = `Puan: 0`;
+            userGuessInput.disabled = false;
+        }
+
+        // Bu fonksiyon HTML'deki onclick olayından çağrıldığı için global erişilebilir olmalıdır.
+        window.restartGame = function() {
+            window.closeModal('result-modal');
+            resetGameInternal();
+            incorrectlyGuessedWords = [];
+            startGame();
+        }
+
+        function startGame() {
+            const filteredWords = getFilteredWords();
+            console.log("startGame çağrıldı. filteredWords.length:", filteredWords.length, "gameWordCount:", gameWordCount); // Hata ayıklama için
+            if (filteredWords.length < gameWordCount) {
+                displayError(`Oyunu başlatmak için yeterli kelime yok. Seçili kategorilerde en az ${gameWordCount} kelimeye ihtiyacınız var.`);
+                gameSection.classList.add('hidden');
+                gameSetupSection.classList.remove('hidden');
+                return;
+            }
+            const shuffledWords = [...filteredWords].sort(() => 0.5 - Math.random()); // Kelimeleri karıştır
+            wordsToGuess = shuffledWords.slice(0, gameWordCount);
+
+            displayCurrentWord();
+        }
+
+        function displayCurrentWord() {
+            if (currentWordIndex < wordsToGuess.length) {
+                const word = wordsToGuess[currentWordIndex];
+                let questionText = "";
+                let placeholderText = "";
+
+                if (gameDirection === 'italiantoturkish') {
+                    questionText = word.italian;
+                    placeholderText = "Türkçe karşılığını yazın";
+                } else {
+                    questionText = word.turkish;
+                    placeholderText = "İtalyanca karşılığını yazın";
+                }
+
+                questionWordDisplay.textContent = questionText;
+                userGuessInput.placeholder = placeholderText;
+                userGuessInput.value = '';
+                feedbackMessage.textContent = '';
+                checkAnswerButton.classList.remove('hidden');
+                nextWordButton.classList.add('hidden');
+                userGuessInput.focus();
+                wordCounter.textContent = `Kelime: ${currentWordIndex + 1}/${gameWordCount}`;
+            } else {
+                endGame();
+            }
+        }
+
+        checkAnswerButton.addEventListener('click', () => {
+            const currentWord = wordsToGuess[currentWordIndex];
+            const guess = userGuessInput.value.trim();
+
+            if (!guess) {
+                feedbackMessage.textContent = "Lütfen bir tahminde bulunun!";
+                feedbackMessage.className = "text-xl font-semibold mt-4 text-yellow-600 min-h-[30px]";
+                return;
+            }
+
+            let correctAnswer = "";
+            let isCorrect = false;
+
+            if (gameDirection === 'italiantoturkish') {
+                correctAnswer = currentWord.turkish;
+                // Türkçe karakter ve büyük/küçük harf duyarsız karşılaştırma
+                isCorrect = guess.localeCompare(correctAnswer, 'tr-TR', { sensitivity: 'base' }) === 0;
+            } else {
+                correctAnswer = currentWord.italian;
+                // İtalyanca karakter ve büyük/küçük harf duyarsız karşılaştırma
+                isCorrect = guess.localeCompare(correctAnswer, 'it-IT', { sensitivity: 'base' }) === 0;
+            }
+
+            if (isCorrect) {
+                feedbackMessage.textContent = "Doğru bildiniz! 🎉";
+                feedbackMessage.className = "text-xl font-semibold mt-4 text-green-600 min-h-[30px]";
+                score++;
+            } else {
+                feedbackMessage.textContent = `Yanlış! Doğru cevap: "${correctAnswer}"`;
+                feedbackMessage.className = "text-xl font-semibold mt-4 text-red-600 min-h-[30px]";
+                incorrectlyGuessedWords.push({
+                    asked: gameDirection === 'italiantoturkish' ? currentWord.italian : currentWord.turkish,
+                    correct: correctAnswer,
+                    userGuess: guess,
+                    direction: gameDirection
+                });
+            }
+            scoreDisplay.textContent = `Puan: ${score}`;
+            checkAnswerButton.classList.add('hidden');
+            nextWordButton.classList.remove('hidden');
+            userGuessInput.disabled = true;
+        });
+
+        nextWordButton.addEventListener('click', () => {
+            currentWordIndex++;
+            userGuessInput.disabled = false;
+            displayCurrentWord();
+        });
+
+        document.body.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                if (gameSection.classList.contains('hidden')) {
+                    const activeElement = document.activeElement;
+                    if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'BUTTON')) {
+                         return;
+                    }
+                    return;
+                }
+
+                event.preventDefault();
+
+                if (!checkAnswerButton.classList.contains('hidden')) {
+                    checkAnswerButton.click();
+                } else if (!nextWordButton.classList.contains('hidden')) {
+                    nextWordButton.click();
+                }
+            }
+        });
+
+        function endGame() {
+            finalScoreDisplay.textContent = `Toplamda ${score} doğru cevap verdiniz!`;
+            incorrectWordsListDiv.innerHTML = '';
+
+            if (incorrectlyGuessedWords.length > 0) {
+                const title = document.createElement('h3');
+                title.className = 'text-xl font-semibold text-gray-800 mb-2 mt-4';
+                title.textContent = 'Yanlış Bildikleriniz:';
+                incorrectWordsListDiv.appendChild(title);
+
+                const ul = document.createElement('ul');
+                ul.className = 'list-disc list-inside text-left mx-auto max-w-xs';
+                incorrectlyGuessedWords.forEach(item => {
+                    const li = document.createElement('li');
+                    let askedLang = item.direction === 'italiantoturkish' ? "İtalyanca" : "Türkçe";
+                    let correctLang = item.direction === 'italiantoturkish' ? "Türkçe" : "İtalyanca";
+
+                    li.innerHTML = `<span class="font-medium">${askedLang}: "${item.asked}"</span><br> Doğru ${correctLang}: "<span class="text-green-600">${item.correct}</span>" (Sizin tahmininiz: "${item.userGuess}")`;
+                    ul.appendChild(li);
+                });
+                incorrectWordsListDiv.appendChild(ul);
+            } else {
+                const congrats = document.createElement('p');
+                congrats.className = 'text-lg text-green-700 mt-4';
+                congrats.textContent = 'Tebrikler! Tüm kelimeleri doğru bildiniz!';
+                incorrectWordsListDiv.appendChild(congrats);
+            }
+
+            window.showModal('result-modal');
+        }
+
+        // --- Kelime Yönetimi İşlemleri (Firebase Destekli) ---
+
+        // Kelime zaten mevcut mu kontrol eder (büyük/küçük harf duyarsız)
+        function isWordDuplicate(italian, turkish) {
+            return allWords.some(word =>
+                word.italian.localeCompare(italian, undefined, { sensitivity: 'base' }) === 0 &&
+                word.turkish.localeCompare(turkish, undefined, { sensitivity: 'base' }) === 0
+            );
+        }
+
+        // Yeni kelime ekler
+        addWordButton.addEventListener('click', async () => {
+            const italian = addItalianWordInput.value.trim();
+            const turkish = addTurkishWordInput.value.trim();
+            const type = addWordTypeInput.value.trim() || 'Genel'; // Varsayılan değer 'Genel'
+
+            if (!italian || !turkish) {
+                displayError("Lütfen hem İtalyanca hem de Türkçe kelime girin.");
+                return;
+            }
+
+            if (isWordDuplicate(italian, turkish)) {
+                displayError(`"${italian} - ${turkish}" kelimesi zaten listede mevcut.`);
+                return;
+            }
+
+            try {
+                // Firebase'e yeni kelime ekle
+                await addDoc(wordsCollectionRef, {
+                    italian: italian,
+                    turkish: turkish,
+                    type: type, // Yeni 'type' alanı eklendi
+                    timestamp: new Date() // Eklenme zamanı
+                });
+                addItalianWordInput.value = '';
+                addTurkishWordInput.value = '';
+                addWordTypeInput.value = ''; // Type inputunu da temizle
+                console.log("Kelime başarıyla eklendi (Firebase'e)!");
+                // onSnapshot sayesinde tablo otomatik güncellenecek
+            } catch (e) {
+                console.error("Kelime eklenirken hata oluştu: ", e);
+                displayError("Kelime eklenirken bir hata oluştu: " + e.message);
+            }
+        });
+
+        // Kelime listesini tabloya render eder
+        function renderWordsTable() {
+            wordsTableBody.innerHTML = '';
+            totalWordCountSpan.textContent = allWords.length;
+
+            if (allWords.length === 0) {
+                wordsTableBody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">Henüz kelime yok. Yeni kelimeler ekleyin!</td></tr>';
+                return;
+            }
+
+            allWords.forEach(word => {
+                const row = wordsTableBody.insertRow();
+                row.className = 'hover:bg-gray-100';
+
+                const italianCell = row.insertCell();
+                italianCell.className = 'px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900';
+                italianCell.textContent = word.italian;
+
+                const turkishCell = row.insertCell();
+                turkishCell.className = 'px-3 py-2 whitespace-nowrap text-sm text-gray-500';
+                turkishCell.textContent = word.turkish;
+
+                const typeCell = row.insertCell(); // Yeni
+                typeCell.className = 'px-3 py-2 whitespace-nowrap text-sm text-gray-500';
+                typeCell.textContent = word.type || 'Belirtilmemiş'; // Tür yoksa "Belirtilmemiş" yaz
+
+                const actionsCell = row.insertCell();
+                actionsCell.className = 'px-3 py-2 whitespace-nowrap text-right text-sm font-medium';
+
+                const editButton = document.createElement('button');
+                editButton.textContent = 'Düzenle';
+                editButton.className = 'text-blue-600 hover:text-blue-900 mr-3';
+                editButton.onclick = () => openEditModal(word);
+                actionsCell.appendChild(editButton);
+
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Sil';
+                deleteButton.className = 'text-red-600 hover:text-red-900';
+                deleteButton.onclick = () => showConfirmModal(`"${word.italian}" kelimesini silmek istediğinizden emin misiniz?`, async (confirmed) => {
+                    if (confirmed) {
+                        await deleteWord(word.id);
+                    }
+                });
+                actionsCell.appendChild(deleteButton);
+            });
+        }
+
+        // Düzenleme modalını açar ve mevcut kelime verilerini yükler
+        function openEditModal(word) {
+            currentEditingDocId = word.id;
+            editItalianWordInput.value = word.italian;
+            editTurkishWordInput.value = word.turkish;
+            editWordTypeInput.value = word.type || ''; // Type alanını da doldur
+            window.showModal('edit-word-modal');
+        }
+
+        // Kelimeyi günceller (düzenleme modalından)
+        saveEditButton.addEventListener('click', async () => {
+            const italian = editItalianWordInput.value.trim();
+            const turkish = editTurkishWordInput.value.trim();
+            const type = editWordTypeInput.value.trim() || 'Genel'; // Varsayılan değer 'Genel'
+
+            if (!italian || !turkish) {
+                displayError("Lütfen hem İtalyanca hem de Türkçe kelime girin.");
+                return;
+            }
+            if (!currentEditingDocId) {
+                displayError("Düzenlenecek kelime bulunamadı. Lütfen tekrar deneyin.");
+                return;
+            }
+
+            // Güncelleme yapmadan önce, yeni değerlerin başka bir kelimeyle çakışıp çakışmadığını kontrol et
+            const existingWord = allWords.find(word => word.id === currentEditingDocId);
+            if (existingWord && (existingWord.italian.localeCompare(italian, undefined, { sensitivity: 'base' }) !== 0 || existingWord.turkish.localeCompare(turkish, undefined, { sensitivity: 'base' }) !== 0)) {
+                if (isWordDuplicate(italian, turkish)) {
+                    displayError(`"${italian} - ${turkish}" kelimesi zaten listede mevcut.`);
+                    return;
+                }
+            }
+
+            try {
+                // Firebase'deki belgeyi güncelle
+                const wordDocRef = doc(db, `users/${userId}/words`, currentEditingDocId);
+                await updateDoc(wordDocRef, {
+                    italian: italian,
+                    turkish: turkish,
+                    type: type // Yeni 'type' alanı güncellendi
+                });
+                console.log("Kelime başarıyla güncellendi (Firebase'de)!");
+                window.closeModal('edit-word-modal');
+                // onSnapshot sayesinde tablo otomatik güncellenecek
+            } catch (e) {
+                console.error("Kelime güncellenirken hata oluştu: ", e);
+                displayError("Kelime güncellenirken bir hata oluştu: " + e.message);
+            }
+        });
+
+        // Kelimeyi siler
+        async function deleteWord(id) {
+            try {
+                // Firebase'deki belgeyi sil
+                const wordDocRef = doc(db, `users/${userId}/words`, id);
+                await deleteDoc(wordDocRef);
+                console.log("Kelime başarıyla silindi (Firebase'den)!");
+                // onSnapshot sayesinde tablo otomatik güncellenecek
+            } catch (e) {
+                console.error("Kelime silinirken hata oluştu: ", e);
+                displayError("Kelime silinirken bir hata oluştu: " + e.message);
+            }
+        }
+
+        // --- Excel Dosyasından Kelime Aktarma (Firebase'e yazacak şekilde güncellendi) ---
+        excelFileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                fileNameDisplay.textContent = `Seçilen Dosya: ${file.name}`;
+                uploadExcelButton.disabled = false;
+                uploadExcelButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                fileNameDisplay.textContent = '';
+                uploadExcelButton.disabled = true;
+                uploadExcelButton.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+            excelImportStatus.textContent = ''; // Durum mesajını temizle
+            excelProgressContainer.classList.add('hidden'); // Progress bar'ı gizle
+            excelProgressBar.style.width = '0%'; // Progress bar'ı sıfırla
+        });
+
+        uploadExcelButton.addEventListener('click', async () => {
+            const file = excelFileInput.files[0];
+            if (!file) {
+                displayError("Lütfen bir Excel dosyası seçin.");
+                return;
+            }
+            await handleFileUpload(file, excelImportStatus);
+        });
+
+        async function handleFileUpload(file, statusElement) {
+            if (!wordsCollectionRef) {
+                displayError("Firebase henüz başlatılmadı veya kullanıcı oturum açmadı. Lütfen bekleyin.");
+                return;
+            }
+
+            if (statusElement) {
+                statusElement.className = 'text-sm mt-3 text-gray-600';
+                statusElement.textContent = 'Excel dosyası okunuyor...';
+                uploadExcelButton.disabled = true; // Butonu devre dışı bırak
+                uploadExcelButton.classList.add('opacity-50', 'cursor-not-allowed');
+                excelProgressContainer.classList.remove('hidden'); // Progress bar'ı göster
+                excelProgressBar.style.width = '0%'; // Progress bar'ı sıfırla
+            }
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const sheetData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    if (sheetData.length === 0) {
+                        const msg = "Excel dosyasında okunabilir veri bulunamadı.";
+                        if (statusElement) {
+                            statusElement.className = 'text-sm mt-3 text-red-600';
+                            statusElement.textContent = msg;
+                        } else {
+                            displayError(msg);
+                        }
+                        return;
+                    }
+
+                    const headers = sheetData[0].map(h => String(h).replace(/\s+/g, '').toLowerCase());
+                    const italianColIndex = headers.indexOf('italyanca');
+                    const turkishColIndex = headers.indexOf('türkçe');
+                    const typeColIndex = headers.indexOf('tür') !== -1 ? headers.indexOf('tür') : headers.indexOf('category'); // 'Tür' veya 'Category' sütununu bul
+
+                    if (italianColIndex === -1 || turkishColIndex === -1) {
+                        const msg = "Excel dosyasında 'İtalyanca' ve 'Türkçe' başlıklı sütunlar bulunamadı. Lütfen Excel dosyanızın ilk satırında bu başlıkların olduğundan emin olun.";
+                        if (statusElement) {
+                            statusElement.className = 'text-sm mt-3 text-red-600';
+                            statusElement.textContent = msg;
+                        } else {
+                            displayError(msg);
+                        }
+                        return;
+                    }
+
+                    const wordsToProcess = [];
+                    let duplicatesFound = 0;
+                    for (let i = 1; i < sheetData.length; i++) {
+                        const row = sheetData[i];
+                        const italian = row[italianColIndex];
+                        const turkish = row[turkishColIndex];
+                        const type = typeColIndex !== -1 && row[typeColIndex] ? String(row[typeColIndex]).trim() : 'Genel'; // Tür sütunu varsa al, yoksa 'Genel'
+
+                        if (italian && turkish) {
+                            const trimmedItalian = String(italian).trim();
+                            const trimmedTurkish = String(turkish).trim();
+                            if (isWordDuplicate(trimmedItalian, trimmedTurkish)) {
+                                duplicatesFound++;
+                                console.warn(`Tekrarlayan kelime atlandı: ${trimmedItalian} - ${trimmedTurkish}`);
+                            } else {
+                                wordsToProcess.push({
+                                    italian: trimmedItalian,
+                                    turkish: trimmedTurkish,
+                                    type: type, // Type alanını ekle
+                                    timestamp: new Date()
+                                });
+                            }
+                        }
+                    }
+
+                    if (wordsToProcess.length === 0 && duplicatesFound === sheetData.length - 1) {
+                        const msg = "Excel dosyasında eklenecek geçerli veya yeni kelime bulunamadı.";
+                        if (statusElement) {
+                            statusElement.className = 'text-sm mt-3 text-orange-600';
+                            statusElement.textContent = msg;
+                        } else {
+                            displayError(msg);
+                        }
+                        return;
+                    }
+
+                    let addedCount = 0;
+                    const totalWords = wordsToProcess.length;
+
+                    // Kelimeleri Firebase'e toplu olarak ekle ve ilerlemeyi göster
+                    for (const word of wordsToProcess) {
+                        await addDoc(wordsCollectionRef, word);
+                        addedCount++;
+                        const progress = Math.floor((addedCount / totalWords) * 100);
+                        if (statusElement) {
+                            statusElement.textContent = `Kelimeler ekleniyor... %${progress}`;
+                            excelProgressBar.style.width = `${progress}%`; // Progress bar'ı güncelle
+                        }
+                    }
+
+                    let successMessage = `${addedCount} kelime başarıyla yüklendi!`;
+                    if (duplicatesFound > 0) {
+                        successMessage += ` (${duplicatesFound} tekrar eden kelime atlandı.)`;
+                    }
+
+                    if (statusElement) {
+                        statusElement.className = 'text-sm mt-3 text-green-600';
+                        statusElement.textContent = successMessage;
+                    }
+
+                    excelFileInput.value = ''; // Dosya inputunu temizle
+                    fileNameDisplay.textContent = ''; // Dosya adını temizle
+                    // Butonun durumu finally bloğunda yönetiliyor
+
+                } catch (error) {
+                    console.error("Excel dosyası işlenirken hata:", error);
+                    const msg = "Excel dosyası işlenirken bir hata oluştu: " + error.message;
+                    if (statusElement) {
+                        statusElement.className = 'text-sm mt-3 text-red-600';
+                        statusElement.textContent = msg;
+                    } else {
+                        displayError(msg);
+                    }
+                } finally {
+                    // İşlem bittiğinde butonu tekrar etkinleştir
+                    uploadExcelButton.disabled = false;
+                    uploadExcelButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                    excelProgressContainer.classList.add('hidden'); // Progress bar'ı gizle
+                    excelProgressBar.style.width = '0%'; // Progress bar'ı sıfırla
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // --- Tüm Kelimeleri Silme İşlevi ---
+        deleteAllWordsButton.addEventListener('click', async () => {
+            if (!userId) {
+                displayError("Kelimeleri silmek için giriş yapmış olmalısınız.");
+                return;
+            }
+
+            showConfirmModal("Tüm kelimelerinizi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz!", async (firstConfirmed) => {
+                if (firstConfirmed) {
+                    showConfirmModal("Bu son onaydır. Tüm kelimeleriniz KALICI olarak silinecektir. Devam etmek için 'Evet'e tıklayın.", async (secondConfirmed) => {
+                        if (secondConfirmed) {
+                            try {
+                                const q = query(wordsCollectionRef);
+                                const snapshot = await getDocs(q);
+
+                                if (snapshot.empty) {
+                                    excelImportStatus.className = 'text-sm mt-3 text-orange-600';
+                                    excelImportStatus.textContent = "Silinecek kelime bulunamadı.";
+                                    return;
+                                }
+
+                                let deletedCount = 0;
+                                const totalToDelete = snapshot.size;
+
+                                // UI'da silme durumunu göster
+                                excelImportStatus.className = 'text-sm mt-3 text-gray-600';
+                                excelImportStatus.textContent = `Tüm kelimeler siliniyor... %0`;
+                                deleteAllWordsButton.disabled = true;
+                                deleteAllWordsButton.classList.add('opacity-50', 'cursor-not-allowed');
+                                removeDuplicatesButton.disabled = true; // Diğer silme butonunu da devre dışı bırak
+                                removeDuplicatesButton.classList.add('opacity-50', 'cursor-not-allowed');
+                                excelProgressContainer.classList.remove('hidden'); // Progress bar'ı göster
+                                excelProgressBar.style.width = '0%'; // Progress bar'ı sıfırla
+
+                                const BATCH_SIZE = 499; // Firestore batch'leri 500 işlemle sınırlıdır
+                                let currentBatch = db.batch();
+                                let batchCount = 0;
+
+                                for (const doc of snapshot.docs) {
+                                    currentBatch.delete(doc.ref);
+                                    deletedCount++;
+                                    batchCount++;
+
+                                    const progress = Math.floor((deletedCount / totalToDelete) * 100);
+                                    excelImportStatus.textContent = `Tüm kelimeler siliniyor... %${progress}`;
+                                    excelProgressBar.style.width = `${progress}%`;
+
+                                    if (batchCount === BATCH_SIZE) {
+                                        await currentBatch.commit();
+                                        currentBatch = db.batch();
+                                        batchCount = 0;
+                                        console.log("Batch commit edildi.");
+                                    }
+                                }
+
+                                // Kalan işlemleri commit et
+                                if (batchCount > 0) {
+                                    await currentBatch.commit();
+                                    console.log("Son batch commit edildi.");
+                                }
+
+                                excelImportStatus.className = 'text-sm mt-3 text-green-600';
+                                excelImportStatus.textContent = `Tüm ${deletedCount} kelime başarıyla silindi!`;
+                                console.log(`Tüm ${deletedCount} kelime başarıyla silindi.`);
+                                // onSnapshot dinleyicisi tabloyu otomatik güncelleyecektir.
+
+                            } catch (error) {
+                                console.error("Tüm kelimeler silinirken hata oluştu: ", error);
+                                displayError("Tüm kelimeler silinirken bir hata oluştu: " + error.message);
+                            } finally {
+                                deleteAllWordsButton.disabled = false;
+                                deleteAllWordsButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                                removeDuplicatesButton.disabled = false; // Diğer silme butonunu tekrar etkinleştir
+                                removeDuplicatesButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                                excelProgressContainer.classList.add('hidden'); // Progress bar'ı gizle
+                                excelProgressBar.style.width = '0%'; // Progress bar'ı sıfırla
+                            }
+                        }
+                    });
+                }
+            });
+        });
+
+        // --- Tekrarlayan Kelimeleri Temizle İşlevi ---
+        removeDuplicatesButton.addEventListener('click', async () => {
+            if (!userId) {
+                displayError("Tekrarlayan kelimeleri temizlemek için giriş yapmış olmalısınız.");
+                return;
+            }
+
+            showConfirmModal("Veritabanındaki tekrarlayan kelimeleri temizlemek istediğinizden emin misiniz? Her kelime grubundan yalnızca bir tanesi kalacaktır.", async (confirmed) => {
+                if (confirmed) {
+                    try {
+                        const q = query(wordsCollectionRef);
+                        const snapshot = await getDocs(q);
+
+                        if (snapshot.empty) {
+                            excelImportStatus.className = 'text-sm mt-3 text-orange-600';
+                            excelImportStatus.textContent = "Veritabanında kelime bulunamadı.";
+                            return;
+                        }
+
+                        const uniqueWords = new Map(); // Key: "italian_turkish_lower", Value: first encountered doc
+                        const duplicatesToDelete = [];
+
+                        snapshot.forEach(doc => {
+                            const data = doc.data();
+                            // localeCompare ile büyük/küçük harf ve karakter duyarsız karşılaştırma
+                            const normalizedItalian = (data.italian || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                            const normalizedTurkish = (data.turkish || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                            const normalizedKey = `${normalizedItalian}_${normalizedTurkish}`;
+
+                            if (uniqueWords.has(normalizedKey)) {
+                                duplicatesToDelete.push(doc.id); // Bu bir kopya, silinecek
+                            } else {
+                                uniqueWords.set(normalizedKey, doc); // İlk kez görülen kelime, saklanacak
+                            }
+                        });
+
+                        if (duplicatesToDelete.length === 0) {
+                            excelImportStatus.className = 'text-sm mt-3 text-green-600';
+                            excelImportStatus.textContent = "Tekrarlayan kelime bulunamadı.";
+                            return;
+                        }
+
+                        let deletedCount = 0;
+                        const totalToDelete = duplicatesToDelete.length;
+
+                        excelImportStatus.className = 'text-sm mt-3 text-gray-600';
+                        excelImportStatus.textContent = `Tekrarlayan kelimeler siliniyor... %0`;
+                        removeDuplicatesButton.disabled = true;
+                        removeDuplicatesButton.classList.add('opacity-50', 'cursor-not-allowed');
+                        deleteAllWordsButton.disabled = true; // Diğer silme butonunu da devre dışı bırak
+                        deleteAllWordsButton.classList.add('opacity-50', 'cursor-not-allowed');
+                        excelProgressContainer.classList.remove('hidden'); // Progress bar'ı göster
+                        excelProgressBar.style.width = '0%'; // Progress bar'ı sıfırla
+
+                        const BATCH_SIZE = 499;
+                        let currentBatch = db.batch();
+                        let batchCount = 0;
+
+                        for (const docId of duplicatesToDelete) {
+                            currentBatch.delete(doc(db, `users/${userId}/words`, docId));
+                            deletedCount++;
+                            batchCount++;
+
+                            const progress = Math.floor((deletedCount / totalToDelete) * 100);
+                            excelImportStatus.textContent = `Tekrarlayan kelimeler siliniyor... %${progress}`;
+                            excelProgressBar.style.width = `${progress}%`;
+
+                            if (batchCount === BATCH_SIZE) {
+                                await currentBatch.commit();
+                                currentBatch = db.batch();
+                                batchCount = 0;
+                                console.log("Batch commit edildi (tekrarlayan silme).");
+                            }
+                        }
+
+                        if (batchCount > 0) {
+                            await currentBatch.commit();
+                            console.log("Son batch commit edildi (tekrarlayan silme).");
+                        }
+
+                        excelImportStatus.className = 'text-sm mt-3 text-green-600';
+                        excelImportStatus.textContent = `${deletedCount} tekrarlayan kelime başarıyla silindi!`;
+                        console.log(`${deletedCount} tekrarlayan kelime başarıyla silindi.`);
+                        // onSnapshot dinleyicisi tabloyu otomatik güncelleyecektir.
+
+                    } catch (error) {
+                        console.error("Tekrarlayan kelimeler silinirken hata oluştu: ", error);
+                        displayError("Tekrarlayan kelimeler silinirken bir hata oluştu: " + error.message);
+                    } finally {
+                        removeDuplicatesButton.disabled = false;
+                        removeDuplicatesButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                        deleteAllWordsButton.disabled = false; // Diğer silme butonunu tekrar etkinleştir
+                        deleteAllWordsButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                        excelProgressContainer.classList.add('hidden'); // Progress bar'ı gizle
+                        excelProgressBar.style.width = '0%'; // Progress bar'ı sıfırla
+                    }
+                }
+            });
+        });
+
+        // --- Kategori Seçimi Oluşturma ve Yönetme ---
+        function renderCategorySelection() {
+            categorySelectionContainer.innerHTML = ''; // Önceki kategori seçimlerini temizle
+
+            // "Tümü" seçeneğini ekle
+            const allCheckboxDiv = document.createElement('div');
+            allCheckboxDiv.className = 'flex items-center';
+            const allInput = document.createElement('input');
+            allInput.type = 'checkbox';
+            allInput.id = 'category-all';
+            allInput.value = 'Tümü';
+            allInput.className = 'form-checkbox h-5 w-5 text-blue-600 rounded';
+            allInput.checked = selectedCategories.includes('Tümü');
+            allInput.addEventListener('change', (event) => {
+                if (event.target.checked) {
+                    selectedCategories = ['Tümü']; // "Tümü" seçilirse diğerlerini kaldır
+                    // Diğer tüm checkbox'ları da işaretle
+                    categorySelectionContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                        if (cb.id !== 'category-all') {
+                            cb.checked = false; // Diğerlerini kaldır
+                        }
+                    });
+                } else {
+                    // Eğer "Tümü" seçimi kaldırılırsa ve başka hiçbir şey seçili değilse, tekrar "Tümü"nü seçili yap
+                    if (selectedCategories.length === 1 && selectedCategories.includes('Tümü')) {
+                         selectedCategories = []; // Boş bırak
+                    }
+                }
+                updateStartButtonState(); // Kategori seçimi değiştiğinde oyun başlatma butonunu güncelle
+                renderCategorySelection(); // UI'ı yeniden render et
+            });
+            const allLabel = document.createElement('label');
+            allLabel.htmlFor = 'category-all';
+            allLabel.className = 'ml-2 text-gray-700 font-medium cursor-pointer';
+            allLabel.textContent = 'Tümü';
+            allCheckboxDiv.appendChild(allInput);
+            allCheckboxDiv.appendChild(allLabel);
+            categorySelectionContainer.appendChild(allCheckboxDiv);
+
+            // Dinamik kategorileri ekle
+            const sortedCategories = Array.from(allCategories).sort((a, b) => a.localeCompare(b, 'tr-TR'));
+            sortedCategories.forEach(category => {
+                if (category === 'Tümü') return; // "Tümü" zaten eklendi
+
+                const checkboxDiv = document.createElement('div');
+                checkboxDiv.className = 'flex items-center';
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.id = `category-${category.replace(/\s+/g, '-')}`; // ID için boşlukları kaldır
+                input.value = category;
+                input.className = 'form-checkbox h-5 w-5 text-blue-600 rounded';
+                input.checked = selectedCategories.includes(category);
+                input.addEventListener('change', (event) => {
+                    if (event.target.checked) {
+                        // Eğer "Tümü" seçiliyken başka bir kategori seçilirse, "Tümü"nü kaldır
+                        if (selectedCategories.includes('Tümü')) {
+                            selectedCategories = selectedCategories.filter(cat => cat !== 'Tümü');
+                            document.getElementById('category-all').checked = false; // "Tümü" checkbox'ını kaldır
+                        }
+                        selectedCategories.push(category);
+                    } else {
+                        selectedCategories = selectedCategories.filter(cat => cat !== category);
+                        // Eğer hiçbir kategori seçili kalmazsa, "Tümü"nü otomatik olarak seç
+                        if (selectedCategories.length === 0) {
+                            selectedCategories.push('Tümü');
+                            document.getElementById('category-all').checked = true;
+                        }
+                    }
+                    updateStartButtonState(); // Kategori seçimi değiştiğinde oyun başlatma butonunu güncelle
+                });
+                const label = document.createElement('label');
+                label.htmlFor = `category-${category.replace(/\s+/g, '-')}`;
+                label.className = 'ml-2 text-gray-700 font-medium cursor-pointer';
+                label.textContent = category;
+                checkboxDiv.appendChild(input);
+                checkboxDiv.appendChild(label);
+                categorySelectionContainer.appendChild(checkboxDiv);
+            });
+        }
+
+
+        // --- Firebase Başlatma ve Veri Dinleme ---
+        async function initializeFirebaseAndLoadWords() {
+            try {
+                // Kendi Firebase yapılandırmanızı kullanın
+                if (!firebaseConfig || !firebaseConfig.apiKey) {
+                    console.error("Firebase yapılandırması eksik veya hatalı. Lütfen kendi firebaseConfig objenizi doğru bir şekilde yapıştırdığınızdan emin olun.");
+                    userDisplayText.textContent = "Hata: Firebase yapılandırması yok.";
+                    displayError("Firebase yapılandırması eksik. Lütfen kodu kontrol edin.");
+                    return;
+                }
+
+                console.log("Firebase Yapılandırması:", firebaseConfig); // Hata ayıklama için
+
+                currentAppId = firebaseConfig.projectId; // Kendi projenizin ID'sini kullanın
+                const app = initializeApp(firebaseConfig);
+                const analytics = getAnalytics(app); // Analytics başlatıldı
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Kullanıcı oturum durumu değiştiğinde
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        // Kullanıcı giriş yaptı (anonim veya Google)
+                        userId = user.uid;
+                        userEmail = user.email || "Misafir Kullanıcı"; // E-posta varsa göster, yoksa "Misafir"
+                        userDisplayText.textContent = `Giriş Yapan: ${userEmail}`;
+                        signOutButton.classList.remove('hidden'); // Çıkış yap butonunu göster
+                        googleSigninButton.classList.add('hidden'); // Google giriş butonunu gizle
+
+                        // Oyun ve kelime yönetimi butonlarını göster
+                        startGameModeButton.classList.remove('hidden');
+                        manageWordsModeButton.classList.remove('hidden');
+
+                        // Firestore koleksiyon yolu: 'users/{userId}/words'
+                        wordsCollectionRef = collection(db, `users/${userId}/words`);
+
+                        // Firebase'den kelimeleri dinle
+                        onSnapshot(query(wordsCollectionRef), (snapshot) => {
+                            console.log("Firestore snapshot received. Updating word list."); // Hata ayıklama için
+                            const wordsFromDb = [];
+                            allCategories.clear(); // Kategorileri temizle
+                            allCategories.add('Tümü'); // "Tümü" seçeneğini her zaman ekle
+
+                            snapshot.forEach((doc) => {
+                                const data = doc.data();
+                                wordsFromDb.push({ id: doc.id, ...data });
+                                if (data.type) {
+                                    allCategories.add(data.type); // Yeni kategoriyi ekle
+                                }
+                            });
+                            // Kelimeleri timestamp'e göre sırala (en yeniler en altta)
+                            allWords = wordsFromDb.sort((a, b) => (a.timestamp?.toDate() || 0) - (b.timestamp?.toDate() || 0));
+                            renderWordsTable();
+                            renderCategorySelection(); // Kategori seçim arayüzünü güncelle
+                            updateStartButtonState();
+                            console.log("Firebase'den kelimeler güncellendi:", allWords.length);
+                        }, (error) => {
+                            console.error("Firebase kelimeleri dinlenirken hata oluştu: ", error);
+                            displayError("Veritabanı bağlantısında hata: " + error.message);
+                        });
+
+                    } else {
+                        // Kullanıcı çıkış yaptı veya oturum açmadı
+                        userId = null;
+                        userEmail = null;
+                        userDisplayText.textContent = "Giriş Yapılmadı";
+                        signOutButton.classList.add('hidden'); // Çıkış yap butonunu gizle
+                        googleSigninButton.classList.remove('hidden'); // Google giriş butonunu göster
+
+                        // Oyun ve kelime yönetimi butonlarını gizle
+                        startGameModeButton.classList.add('hidden');
+                        manageWordsModeButton.classList.add('hidden');
+
+                        allWords = []; // Kullanıcı yoksa kelimeleri temizle
+                        allCategories.clear(); // Kategorileri temizle
+                        allCategories.add('Tümü'); // "Tümü" seçeneğini tekrar ekle
+                        selectedCategories = ['Tümü']; // Seçili kategorileri sıfırla
+                        renderWordsTable();
+                        renderCategorySelection(); // Kategori seçim arayüzünü güncelle
+                        updateStartButtonState();
+                    }
+                });
+
+            } catch (error) {
+                console.error("Firebase başlatılırken veya oturum açılırken hata oluştu: ", error);
+                userDisplayText.textContent = "Hata: Firebase bağlantısı kurulamadı.";
+                displayError("Uygulama başlatılırken bir hata oluştu: " + error.message);
+            }
+        }
+
+        // Sayfa yüklendiğinde Firebase'i başlat
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeFirebaseAndLoadWords();
+        });
+    </script>
+</body>
+</html>
