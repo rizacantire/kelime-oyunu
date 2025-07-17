@@ -107,7 +107,7 @@
             transition: background-color 0.2s ease-in-out;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             width: 100%;
-            max-width: 320px; /* Daha dar bir genişlik */
+            max-w-xs: 320px; /* Daha dar bir genişlik */
         }
         .google-signin-button:hover {
             background-color: #357ae8;
@@ -358,6 +358,8 @@
     </div>
 
     <script type="module">
+        // Script başlangıcı
+        console.log("Uygulama betiği yükleniyor..."); // Hata ayıklama için eklendi
         // Firebase Modülleri
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-analytics.js";
@@ -1080,7 +1082,7 @@
                     const typeColIndex = headers.indexOf('tür') !== -1 ? headers.indexOf('tür') : headers.indexOf('category'); // 'Tür' veya 'Category' sütununu bul
 
                     if (italianColIndex === -1 || turkishColIndex === -1) {
-                        const msg = "Excel dosyasında 'İtalyanca' ve 'Türkçe' başlıklı sütunlar bulunamadı. Lütfen Excel dosyanızın ilk satırında bu başlıkların olduğundan emin olun.";
+                        const msg = "Excel dosyasında 'İtalyanca' ve 'Türkçe' başlıklı sütunlar bulunamadı. Lütfen başlıklarınızı kontrol edin. Okunan başlıklar için tarayıcı konsolunu (F12) inceleyebilirsiniz.";
                         if (statusElement) {
                             statusElement.className = 'text-sm mt-3 text-red-600';
                             statusElement.textContent = msg;
@@ -1216,6 +1218,7 @@
                                 excelProgressBar.style.width = '0%'; // Progress bar'ı sıfırla
 
                                 console.log(`Toplam ${totalToDelete} kelime silinecek.`);
+                                // DEBUG: Tüm kelimeleri silme işlemi başlatılıyor.
 
                                 const BATCH_SIZE = 499; // Firestore batch'leri 500 işlemle sınırlıdır
                                 let batch = writeBatch(db); // writeBatch(db) olarak düzeltildi
@@ -1311,7 +1314,7 @@
 
         /**
          * Belirtilen moda göre tekrarlayan kelimeleri bulur ve silme işlemini başlatır.
-         * @param {string} mode 'both', 'italianOnly', 'turkishOnly'
+         * @param {string} mode 'both', 'italianturkishOnly', 'turkishtoitalianOnly'
          */
         async function processDuplicateRemoval(mode) {
             try {
@@ -1336,9 +1339,9 @@
                     const normalizedItalian = (data.italian || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                     const normalizedTurkish = (data.turkish || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-                    if (mode === 'italianOnly') {
+                    if (mode === 'italianturkishOnly') { // Hata düzeltmesi: italianOnly yerine italianturkishOnly
                         normalizedKey = normalizedItalian;
-                    } else if (mode === 'turkishOnly') {
+                    } else if (mode === 'turkishtoitalianOnly') { // Hata düzeltmesi: turkishOnly yerine turkishtoitalianOnly
                         normalizedKey = normalizedTurkish;
                     } else { // 'both'
                         normalizedKey = `${normalizedItalian}_${normalizedTurkish}`;
@@ -1428,7 +1431,7 @@
                 excelProgressContainer.classList.add('hidden');
                 excelProgressBar.style.width = '0%';
             }
-        });
+        }
 
 
         // --- Kelimeleri Dışa Aktar İşlevi ---
@@ -1647,6 +1650,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             initializeFirebaseAndLoadWords();
         });
+        console.log("Uygulama betiği başarıyla yüklendi ve ayrıştırıldı."); // Hata ayıklama için eklendi
     </script>
 </body>
 </html>
