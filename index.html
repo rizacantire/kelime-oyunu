@@ -107,7 +107,7 @@
             transition: background-color 0.2s ease-in-out;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             width: 100%;
-            max-w-xs: 320px; /* Daha dar bir genişlik */
+            max-width: 320px; /* Daha dar bir genişlik */
         }
         .google-signin-button:hover {
             background-color: #357ae8;
@@ -445,7 +445,7 @@
          * @param {string} [title='Onay Gerekli'] Modal başlığı.
          * @param {string[]} [details=[]] Detaylı mesajlar veya silinecek öğelerin listesi.
          */
-        function showConfirmModal(message, callback, title = 'Onay Gerekli', details = []) {
+        window.showConfirmModal = function(message, callback, title = 'Onay Gerekli', details = []) { // Syntax hatası düzeltildi
             const confirmMessage = document.getElementById('confirm-message');
             const confirmModalTitle = document.getElementById('confirm-modal-title');
             const confirmDetailsList = document.getElementById('confirm-details-list');
@@ -615,7 +615,7 @@
 
         // --- Çıkış Yapma ---
         signOutButton.addEventListener('click', async () => {
-            showConfirmModal("Oturumu kapatmak istediğinizden emin misiniz?", async (confirmed) => {
+            window.showConfirmModal("Oturumu kapatmak istediğinizden emin misiniz?", async (confirmed) => {
                 if (confirmed) {
                     try {
                         await signOut(auth);
@@ -942,7 +942,7 @@
                 const deleteButton = document.createElement('button');
                 deleteButton.textContent = 'Sil';
                 deleteButton.className = 'text-red-600 hover:text-red-900';
-                deleteButton.onclick = () => showConfirmModal(`"${capitalizeFirstLetter(word.italian || '', 'it-IT')}" kelimesini silmek istediğinizden emin misiniz?`, async (confirmed) => {
+                deleteButton.onclick = () => window.showConfirmModal(`"${capitalizeFirstLetter(word.italian || '', 'it-IT')}" kelimesini silmek istediğinizden emin misiniz?`, async (confirmed) => {
                     if (confirmed) {
                         await deleteWord(word.id);
                     }
@@ -1178,6 +1178,7 @@
 
         // --- Tüm Kelimeleri Silme İşlevi ---
         deleteAllWordsButton.addEventListener('click', async () => {
+            console.log("Delete All Words button clicked."); // Yeni log
             if (!userId) {
                 displayError("Kelimeleri silmek için giriş yapmış olmalısınız.");
                 return;
@@ -1187,10 +1188,15 @@
                 return;
             }
 
-            showConfirmModal("Tüm kelimelerinizi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz!", async (firstConfirmed) => {
+            console.log("First confirmation modal shown."); // Yeni log
+            window.showConfirmModal("Tüm kelimelerinizi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz!", async (firstConfirmed) => {
+                console.log("First confirmation:", firstConfirmed); // Yeni log
                 if (firstConfirmed) {
-                    showConfirmModal("Bu son onaydır. Tüm kelimeleriniz KALICI olarak silinecektir. Devam etmek için 'Evet'e tıklayın.", async (secondConfirmed) => {
+                    console.log("Second confirmation modal shown."); // Yeni log
+                    window.showConfirmModal("Bu son onaydır. Tüm kelimeleriniz KALICI olarak silinecektir. Devam etmek için 'Evet'e tıklayın.", async (secondConfirmed) => {
+                        console.log("Second confirmation:", secondConfirmed); // Yeni log
                         if (secondConfirmed) {
+                            console.log("Attempting to delete all words. userId:", userId, "db:", db, "wordsCollectionRef:", wordsCollectionRef); // Yeni log
                             try {
                                 const q = query(wordsCollectionRef);
                                 const snapshot = await getDocs(q);
@@ -1314,7 +1320,7 @@
 
         /**
          * Belirtilen moda göre tekrarlayan kelimeleri bulur ve silme işlemini başlatır.
-         * @param {string} mode 'both', 'italianturkishOnly', 'turkishtoitalianOnly'
+         * @param {string} mode 'both', 'italianOnly', 'turkishOnly'
          */
         async function processDuplicateRemoval(mode) {
             try {
@@ -1339,9 +1345,9 @@
                     const normalizedItalian = (data.italian || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                     const normalizedTurkish = (data.turkish || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-                    if (mode === 'italianturkishOnly') { // Hata düzeltmesi: italianOnly yerine italianturkishOnly
+                    if (mode === 'italianOnly') {
                         normalizedKey = normalizedItalian;
-                    } else if (mode === 'turkishtoitalianOnly') { // Hata düzeltmesi: turkishOnly yerine turkishtoitalianOnly
+                    } else if (mode === 'turkishOnly') {
                         normalizedKey = normalizedTurkish;
                     } else { // 'both'
                         normalizedKey = `${normalizedItalian}_${normalizedTurkish}`;
@@ -1361,7 +1367,7 @@
                     return;
                 }
 
-                showConfirmModal(
+                window.showConfirmModal(
                     `Veritabanınızda ${duplicatesToDelete.length} adet tekrar eden kelime bulundu. Bu kelimeler kalıcı olarak silinecektir.`,
                     async (confirmed) => {
                         if (confirmed) {
